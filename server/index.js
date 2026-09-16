@@ -2,6 +2,7 @@
 
 const path = require("node:path");
 const express = require("express");
+const cors = require("cors");
 
 try {
   process.loadEnvFile(path.join(__dirname, "..", ".env"));
@@ -13,6 +14,12 @@ const patientRoutes = require("./routes/patient");
 const doctorRoutes = require("./routes/doctor");
 
 const app = express();
+// The Android app (Capacitor WebView) calls this API from a different origin
+// (https://localhost by default) than the browser-served /patient and /doctor
+// pages, so cross-origin requests need explicit CORS headers. No cookies are
+// used for auth (doctor sessions are a bearer token), so allowing all
+// origins here doesn't expose any credentialed state.
+app.use(cors());
 app.use(express.json());
 
 app.get("/health", (req, res) => {

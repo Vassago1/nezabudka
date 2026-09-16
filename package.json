@@ -16,6 +16,7 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "express": "^4.19.2"
   },
   "devDependencies": {
