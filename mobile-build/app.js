@@ -181,6 +181,123 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return courseProgress(task) >= task.courseTotal;
   }
 
+  // ---------- native reminders (Capacitor LocalNotifications - no-op outside the app) ----------
+  // window.Capacitor.Plugins is injected by the native Android WebView at
+  // runtime; it doesn't exist when this same file is opened in a plain
+  // browser tab, so every call below is guarded and silently does nothing there.
+  const LocalNotifications = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications;
+  const notificationsAvailable = !!LocalNotifications;
+  let notificationPermissionGranted = false;
+
+  // Deterministic 32-bit-safe id derived from the task's string id, so the
+  // same task always maps to the same notification id(s) without needing a
+  // separate counter to persist. Slot 0-6 = a specific weekday (WEEKDAY_KEYS
+  // index), slot 9 = the single/daily notification for non-weekday tasks.
+  function notifBaseId(taskId){
+    let h = 5381;
+    for(let i = 0; i < taskId.length; i++){
+      h = ((h * 33) ^ taskId.charCodeAt(i)) >>> 0;
+    }
+    return (h % 90000000) + 1000000; // 7-8 digit positive int
+  }
+  function notifSlotId(taskId, slot){
+    return notifBaseId(taskId) * 10 + slot;
+  }
+  const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 9];
+
+  // What should currently be scheduled for this task, if anything. Paused and
+  // already-finished courses don't get reminders - there's nothing useful to
+  // remind about, and it would just train the patient to ignore the app.
+  function taskNotificationPlan(task){
+    if(!task.time) return [];
+    if(isTaskCurrentlyPaused(getData(), task)) return [];
+    if(task.type === "course" && isCourseFinished(task)) return [];
+    const [hh, mm] = task.time.split(":").map(Number);
+    if(task.type === "weekday"){
+      return (task.weekdays || []).map(key => {
+        const idx = WEEKDAY_KEYS.indexOf(key);
+        if(idx === -1) return null;
+        return { slot: idx, weekday: idx + 1, hour: hh, minute: mm };
+      }).filter(Boolean);
+    }
+    if(task.type === "once"){
+      const [y, m, d] = task.createdDate.split("-").map(Number);
+      return [{ slot: 9, at: new Date(y, m - 1, d, hh, mm, 0) }];
+    }
+    // ongoing, or a course that isn't finished yet - remind daily
+    return [{ slot: 9, hour: hh, minute: mm }];
+  }
+
+  async function checkAndRequestNotificationPermission(){
+    if(!notificationsAvailable) return false;
+    try{
+      let status = await LocalNotifications.checkPermissions();
+      if(status.display === "prompt" || status.display === "prompt-with-rationale"){
+        status = await LocalNotifications.requestPermissions();
+      }
+      notificationPermissionGranted = status.display === "granted";
+    }catch(e){
+      notificationPermissionGranted = false;
+    }
+    return notificationPermissionGranted;
+  }
+
+  async function cancelTaskNotifications(taskId){
+    if(!notificationsAvailable) return;
+    try{
+      await LocalNotifications.cancel({ notifications: ALL_NOTIF_SLOTS.map(slot => ({ id: notifSlotId(taskId, slot) })) });
+    }catch(e){}
+  }
+
+  async function scheduleTaskNotifications(task){
+    if(!notificationsAvailable || !notificationPermissionGranted) return;
+    await cancelTaskNotifications(task.id);
+    const plan = taskNotificationPlan(task);
+    if(plan.length === 0) return;
+    const body = "Незабудка напоминает: " + task.name;
+    const notifications = plan.map(p => {
+      const base = { id: notifSlotId(task.id, p.slot), title: "Незабудка", body };
+      if(p.at) return { ...base, schedule: { at: p.at, allowWhileIdle: true } };
+      if(p.weekday) return { ...base, schedule: { on: { weekday: p.weekday, hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
+      return { ...base, schedule: { on: { hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
+    });
+    try{
+      await LocalNotifications.schedule({ notifications });
+    }catch(e){}
+  }
+
+  // Runs once per app start: compares what's actually scheduled on the device
+  // against what the current task list expects. A mismatch (reinstalled app,
+  // OS killed the alarm store, etc.) triggers a full cancel-then-reschedule
+  // from scratch rather than trying to patch the difference.
+  async function reconcileAllNotifications(){
+    if(!notificationsAvailable || !notificationPermissionGranted) return;
+    const currentData = getData();
+    const expected = new Set();
+    currentData.tasks.forEach(task => {
+      taskNotificationPlan(task).forEach(p => expected.add(notifSlotId(task.id, p.slot)));
+    });
+    let pending = [];
+    try{
+      const res = await LocalNotifications.getPending();
+      pending = (res && res.notifications) || [];
+    }catch(e){ pending = []; }
+    const pendingIds = new Set(pending.map(n => n.id));
+    let diverged = pendingIds.size !== expected.size;
+    if(!diverged){
+      for(const id of expected){
+        if(!pendingIds.has(id)){ diverged = true; break; }
+      }
+    }
+    if(!diverged) return;
+    try{
+      if(pending.length) await LocalNotifications.cancel({ notifications: pending.map(n => ({ id: n.id })) });
+    }catch(e){}
+    for(const task of currentData.tasks){
+      await scheduleTaskNotifications(task);
+    }
+  }
+
   function dayStats(data, dateStr){
     let due = 0, done = 0;
     data.tasks.forEach(task => {
@@ -618,12 +735,15 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   async function pauseTask(taskId){
     await apiCall("POST", "/api/patients/" + data.id + "/obligations/" + taskId + "/pause");
     await refreshData();
+    await cancelTaskNotifications(taskId);
     renderAll();
   }
 
   async function resumeTask(taskId){
     await apiCall("POST", "/api/patients/" + data.id + "/obligations/" + taskId + "/resume");
     await refreshData();
+    const resumed = data.tasks.find(t => t.id === taskId);
+    if(resumed) await scheduleTaskNotifications(resumed);
     renderAll();
   }
 
@@ -632,6 +752,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(!task) return;
     if(!confirm("Удалить «" + task.name + "»?")) return;
     await apiCall("DELETE", "/api/patients/" + data.id + "/obligations/" + taskId);
+    await cancelTaskNotifications(taskId);
     await refreshData();
     renderAll();
   }
@@ -697,9 +818,15 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     const justFinished = result.justFinished;
     await refreshData();
     renderAll();
+    const doneTask = data.tasks.find(t => t.id === taskId);
+    if(doneTask){
+      // "once" tasks are done for good once marked - stop reminding about them.
+      // A course that just finished is the same story; anything still ongoing
+      // (daily / weekday) keeps its reminder for the next occurrence.
+      if(doneTask.type === "once" || justFinished) await cancelTaskNotifications(taskId);
+    }
     if(justFinished){
-      const task = data.tasks.find(t => t.id === taskId);
-      if(task) showCourseCompleteModal(task);
+      if(doneTask) showCourseCompleteModal(doneTask);
     }
   }
 
@@ -829,13 +956,16 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }
     if(type === "weekday") payload.weekdays = getSelectedWeekdays();
 
+    let savedTask;
     if(editingTaskId){
-      await apiCall("PATCH", "/api/patients/" + data.id + "/obligations/" + editingTaskId, payload);
+      savedTask = await apiCall("PATCH", "/api/patients/" + data.id + "/obligations/" + editingTaskId, payload);
     }else{
-      await apiCall("POST", "/api/patients/" + data.id + "/obligations", payload);
+      savedTask = await apiCall("POST", "/api/patients/" + data.id + "/obligations", payload);
     }
 
     await refreshData();
+    const freshTask = data.tasks.find(t => t.id === savedTask.id);
+    if(freshTask) await scheduleTaskNotifications(freshTask);
     closeForm();
     renderAll();
   });
@@ -859,16 +989,30 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const soundToggle = document.getElementById("soundToggle");
   const exportDataBtn = document.getElementById("exportDataBtn");
   const resetAllSettingsBtn = document.getElementById("resetAllSettingsBtn");
+  const notificationsDisabledHintEl = document.getElementById("notificationsDisabledHint");
 
   function applyTheme(theme){
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
   }
 
-  function openSettings(){
+  async function openSettings(){
     const data = getData();
     companionNameInput.value = data.companionName || "Незабудка";
     themeToggle.checked = data.theme === "dark";
     soundToggle.checked = data.soundEnabled !== false;
+    if(notificationsAvailable){
+      // Re-check on every open: the user may have flipped the OS-level
+      // permission since the app started, without us getting a callback for it.
+      try{
+        const status = await LocalNotifications.checkPermissions();
+        const wasGranted = notificationPermissionGranted;
+        notificationPermissionGranted = status.display === "granted";
+        if(notificationPermissionGranted && !wasGranted) reconcileAllNotifications();
+      }catch(e){}
+      notificationsDisabledHintEl.classList.toggle("hidden", notificationPermissionGranted);
+    }else{
+      notificationsDisabledHintEl.classList.add("hidden");
+    }
     settingsOverlay.classList.remove("hidden");
   }
   function closeSettings(){
@@ -1360,6 +1504,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     applyTheme(data.theme);
     renderAll();
     startPolling();
+    if(notificationsAvailable){
+      await checkAndRequestNotificationPermission();
+      await reconcileAllNotifications();
+    }
   }
 
   welcomeStartNewBtn.addEventListener("click", async () => {
