@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Компаньон</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <h1>Компаньон</h1>
+    <div class="header-right">
+      <div class="points-pill" title="Очки заботы — их можно обменять на награды">
+        <span class="points-icon">✨</span>
+        <span><b id="pointsValueTop">0</b></span>
+      </div>
+      <button class="icon-btn" id="openMessagesBtn" type="button" title="Сообщения от врача" aria-label="Сообщения от врача">
+        ✉️<span class="icon-badge hidden" id="messagesBadge">0</span>
+      </button>
+      <button class="icon-btn" id="openConnectBtn" type="button" title="Связь с врачом" aria-label="Связь с врачом">🔗</button>
+      <button class="icon-btn" id="openSettingsBtn" type="button" title="Настройки" aria-label="Настройки">⚙️</button>
+      <div class="mood-pill">
+        <span class="mood-icon" id="moodIcon">🌿</span>
+        <span id="moodLabel">В порядке</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="banner hidden" id="scheduleBanner">
+    <div class="banner-text" id="scheduleBannerText"></div>
+    <div class="banner-actions">
+      <button type="button" class="banner-link" id="scheduleBannerView">Посмотреть</button>
+      <button type="button" class="banner-close" id="scheduleBannerClose" aria-label="Закрыть">×</button>
+    </div>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="pet" type="button">Питомец</button>
+    <button class="tab" data-tab="tasks" type="button">Дела</button>
+    <button class="tab" data-tab="rewards" type="button">Награды</button>
+    <button class="tab" data-tab="journal" type="button">Дневник</button>
+  </nav>
+
+  <main>
+    <section id="screen-pet" class="screen active">
+      <div class="pet-card">
+        <div class="pet-name" id="petNameDisplay">Незабудка</div>
+        <svg id="plantStage" viewBox="0 0 240 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="leafGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#8FAE79"/>
+              <stop offset="100%" stop-color="#557141"/>
+            </linearGradient>
+            <linearGradient id="potGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#D59C6E"/>
+              <stop offset="100%" stop-color="#B4784F"/>
+            </linearGradient>
+          </defs>
+
+          <ellipse cx="120" cy="322" rx="72" ry="9" fill="#000" opacity="0.07"/>
+
+          <g class="plant-group">
+            <g id="plantSway">
+              <g class="stem-group">
+                <path class="stem" d="M120,258 C114,222 126,186 118,150 C113,124 123,104 120,90"
+                      stroke="#5C7A45" stroke-width="7" fill="none" stroke-linecap="round"/>
+              </g>
+
+              <g transform="translate(108,205)">
+                <g class="leaf leaf-a" style="transform-origin:0px 0px;">
+                  <ellipse cx="-30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(15)"/>
+                </g>
+              </g>
+              <g transform="translate(134,178)">
+                <g class="leaf leaf-b" style="transform-origin:0px 0px;">
+                  <ellipse cx="30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(-15)"/>
+                  <g transform="translate(64,-20)">
+                    <g class="flower" style="transform-origin:0px 0px;">
+                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(0)"/>
+                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(72)"/>
+                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(144)"/>
+                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(216)"/>
+                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(288)"/>
+                      <circle cx="0" cy="0" r="4.5" fill="#E7A4BC"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+              <g transform="translate(104,235)">
+                <g class="leaf leaf-c" style="transform-origin:0px 0px;">
+                  <ellipse cx="-28" cy="0" rx="30" ry="13" fill="url(#leafGrad)" transform="rotate(12)"/>
+                </g>
+              </g>
+              <g transform="translate(138,148)">
+                <g class="leaf leaf-d" style="transform-origin:0px 0px;">
+                  <ellipse cx="28" cy="0" rx="28" ry="12" fill="url(#leafGrad)" transform="rotate(-12)"/>
+                  <g transform="translate(55,-12)">
+                    <g class="flower" style="transform-origin:0px 0px;">
+                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(0)"/>
+                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(72)"/>
+                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(144)"/>
+                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(216)"/>
+                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(288)"/>
+                      <circle cx="0" cy="0" r="4" fill="#F6E7B8"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <g transform="translate(120,88)">
+                <g class="flower" style="transform-origin:0px 0px;">
+                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(0)"/>
+                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(72)"/>
+                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(144)"/>
+                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(216)"/>
+                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(288)"/>
+                  <circle cx="0" cy="0" r="7" fill="#F6E7B8"/>
+                </g>
+              </g>
+            </g>
+          </g>
+
+          <g class="pot-group">
+            <ellipse cx="120" cy="258" rx="56" ry="9" fill="#4A3A2E"/>
+            <polygon points="66,258 174,258 158,320 82,320" fill="url(#potGrad)"/>
+            <rect x="58" y="248" width="124" height="16" rx="6" fill="#A96B42"/>
+          </g>
+        </svg>
+
+        <div class="pet-status" id="petStatus">В порядке</div>
+        <div class="pet-caption" id="petCaption">Большая часть дел выполнена.</div>
+        <div class="streak-line" id="streakLine"></div>
+        <div class="growth-line" id="growthLine"></div>
+        <div class="week-summary-line" id="weekSummaryText"></div>
+
+        <div class="history-block">
+          <div class="history-title">История · 14 дней</div>
+          <div class="history-grid" id="historyGrid"></div>
+          <div class="history-hint">Нажмите на день, чтобы посмотреть или оставить заметку</div>
+        </div>
+      </div>
+
+      <div class="time-machine">
+        <span class="tm-tag">Только для демонстрации</span>
+        <div class="tm-date" id="tmDate">—</div>
+        <div class="tm-real" id="tmRealNote"></div>
+        <div class="tm-buttons">
+          <button type="button" class="tm-jump" data-days="1">+1 день</button>
+          <button type="button" class="tm-jump" data-days="3">+3 дня</button>
+          <button type="button" class="tm-jump" data-days="7">+7 дней</button>
+          <button type="button" class="tm-reset" id="tmReset">Сбросить к сегодня</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-tasks" class="screen">
+      <div class="section-heading">
+        <h2>Сегодня</h2>
+        <button class="add-btn" id="toggleAddForm" type="button">+ Добавить</button>
+      </div>
+
+      <form class="add-form hidden" id="addForm">
+        <div class="edit-mode-tag hidden" id="editModeTag">Редактирование задачи</div>
+        <div>
+          <label for="taskName">Название</label>
+          <input id="taskName" type="text" placeholder="Например, Магний" required>
+        </div>
+        <div>
+          <label for="taskType">Тип</label>
+          <select id="taskType">
+            <option value="once">Разовая доза сегодня</option>
+            <option value="weekday">По дням недели</option>
+            <option value="ongoing">Постоянный приём</option>
+            <option value="course">Курс на несколько дней</option>
+          </select>
+        </div>
+        <div id="weekdaysWrap" class="hidden">
+          <label>Дни недели</label>
+          <div class="weekday-picker" id="weekdayPicker">
+            <label class="weekday-opt"><input type="checkbox" value="mon">Пн</label>
+            <label class="weekday-opt"><input type="checkbox" value="tue">Вт</label>
+            <label class="weekday-opt"><input type="checkbox" value="wed">Ср</label>
+            <label class="weekday-opt"><input type="checkbox" value="thu">Чт</label>
+            <label class="weekday-opt"><input type="checkbox" value="fri">Пт</label>
+            <label class="weekday-opt"><input type="checkbox" value="sat">Сб</label>
+            <label class="weekday-opt"><input type="checkbox" value="sun">Вс</label>
+          </div>
+        </div>
+        <div id="courseDaysWrap" class="hidden">
+          <label for="courseDays">Количество дней курса</label>
+          <input id="courseDays" type="number" min="1" value="7">
+        </div>
+        <div>
+          <label for="taskTime">Время (необязательно)</label>
+          <input id="taskTime" type="time">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancelAddForm">Отмена</button>
+          <button type="submit" class="btn-primary" id="addFormSubmitBtn">Добавить</button>
+        </div>
+      </form>
+
+      <ul class="task-list" id="taskList"></ul>
+      <div class="empty-state hidden" id="emptyState">На сегодня активных обязательств нет.<br>Здесь будут появляться новые задачи.</div>
+
+      <div id="finishedWrap" class="hidden">
+        <div class="section-heading">
+          <h2>Завершённые курсы</h2>
+        </div>
+        <ul class="finished-list" id="finishedList"></ul>
+      </div>
+
+      <div id="pausedWrap" class="hidden">
+        <div class="section-heading">
+          <h2>На паузе</h2>
+        </div>
+        <ul class="finished-list" id="pausedList"></ul>
+      </div>
+
+      <div id="otherDaysWrap" class="hidden">
+        <div class="section-heading">
+          <h2>Запланировано на другие дни</h2>
+        </div>
+        <ul class="finished-list" id="otherDaysList"></ul>
+      </div>
+
+      <div class="reset-row">
+        <button type="button" class="btn-text-muted" id="resetAllBtn">Начать заново</button>
+      </div>
+    </section>
+
+    <section id="screen-rewards" class="screen">
+      <div class="points-banner">
+        <div class="points-value" id="pointsBalance">0</div>
+        <div class="points-caption">очков заботы накоплено</div>
+      </div>
+
+      <div class="section-heading">
+        <h2>Награды</h2>
+        <button class="add-btn" id="toggleRewardForm" type="button">+ Своя награда</button>
+      </div>
+
+      <form class="add-form hidden" id="addRewardForm">
+        <div>
+          <label for="rewardName">Название награды</label>
+          <input id="rewardName" type="text" placeholder="Например, вечер без дел" required>
+        </div>
+        <div>
+          <label for="rewardCost">Стоимость в очках</label>
+          <input id="rewardCost" type="number" min="1" value="20">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancelRewardForm">Отмена</button>
+          <button type="submit" class="btn-primary">Добавить</button>
+        </div>
+      </form>
+
+      <ul class="reward-list" id="rewardList"></ul>
+
+      <div id="rewardLogWrap" class="hidden">
+        <div class="section-heading"><h2>Недавно получено</h2></div>
+        <ul class="finished-list" id="rewardLogList"></ul>
+      </div>
+    </section>
+
+    <section id="screen-journal" class="screen">
+      <div class="pet-card journal-checkin">
+        <div class="history-title">Запись на <span id="journalDateLabel">—</span></div>
+        <div class="mood-picker" id="moodPicker"></div>
+        <textarea id="journalNote" rows="3" placeholder="Пара слов, если хочется. Можно оставить пустым."></textarea>
+        <button type="button" class="btn-primary" id="saveJournalBtn" style="margin-top:12px;width:100%;">Сохранить запись</button>
+      </div>
+
+      <div class="history-block">
+        <div class="history-title">Прошлые записи</div>
+        <ul class="journal-list" id="journalList"></ul>
+        <div class="empty-state hidden" id="journalEmpty">Записей пока нет. Заметки — это необязательно, но иногда приятно оглянуться назад.</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="celebrate-overlay hidden" id="celebrateOverlay">
+  <div class="celebrate-card">
+    <div class="celebrate-emoji">🎉</div>
+    <h3 id="celebrateTitle">Курс завершён</h3>
+    <p id="celebrateText"></p>
+    <button type="button" class="btn-primary" id="celebrateClose">Продолжить</button>
+  </div>
+</div>
+
+<div class="celebrate-overlay hidden" id="dayModalOverlay">
+  <div class="celebrate-card day-modal-card">
+    <span class="tm-tag" id="dayModalDate">—</span>
+    <div class="day-modal-stats" id="dayModalStats"></div>
+    <div class="mood-picker" id="dayModalMoodPicker"></div>
+    <textarea id="dayModalNote" rows="3" placeholder="Заметка на этот день (необязательно)"></textarea>
+    <div class="form-actions" style="margin-top:12px;">
+      <button type="button" class="btn-ghost" id="dayModalClose">Закрыть</button>
+      <button type="button" class="btn-primary" id="dayModalSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="celebrate-overlay hidden" id="settingsOverlay">
+  <div class="celebrate-card day-modal-card">
+    <div class="section-heading"><h2>Настройки</h2></div>
+
+    <div class="settings-block">
+      <label for="companionNameInput">Имя компаньона</label>
+      <input id="companionNameInput" type="text" placeholder="Незабудка" maxlength="40">
+    </div>
+
+    <div class="settings-block switch-row">
+      <label for="themeToggle">Тёмная тема</label>
+      <input id="themeToggle" type="checkbox">
+    </div>
+
+    <div class="settings-block switch-row">
+      <label for="soundToggle">Звук при отметке «Сделано»</label>
+      <input id="soundToggle" type="checkbox">
+    </div>
+
+    <div class="settings-block">
+      <button type="button" class="btn-primary" id="exportDataBtn" style="width:100%;">Экспортировать мои данные</button>
+      <div class="settings-hint">Скачивает снимок текущих данных с сервера в JSON.</div>
+    </div>
+
+    <div class="reset-row">
+      <button type="button" class="btn-text-muted" id="resetAllSettingsBtn">Сбросить всё (новый пациент)</button>
+    </div>
+
+    <div class="form-actions" style="margin-top:10px;">
+      <button type="button" class="btn-ghost" id="settingsCloseBtn" style="width:100%;">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div class="celebrate-overlay hidden" id="connectOverlay">
+  <div class="celebrate-card day-modal-card">
+    <div class="section-heading"><h2>Связь с врачом</h2></div>
+
+    <div id="connectNoDoctor">
+      <div class="connect-caption">Дайте этот код своему врачу, чтобы он мог видеть ваш прогресс.</div>
+      <div class="pairing-code-display" id="pairingCodeDisplay">——————</div>
+      <div class="pairing-code-expired-tag hidden" id="pairingCodeExpiredTag">Код устарел, сгенерируйте новый</div>
+      <button type="button" class="btn-primary" id="copyPairingCodeBtn" style="width:100%;">Скопировать</button>
+      <button type="button" class="btn-text-muted" id="regeneratePairingCodeBtn" style="width:100%;">Сгенерировать новый код</button>
+    </div>
+
+    <div id="connectHasDoctor" class="hidden">
+      <div class="doctor-connected-card">
+        <div class="connect-caption">Ваш врач:</div>
+        <div class="doctor-connected-name" id="connectedDoctorName">—</div>
+        <button type="button" class="btn-text-muted" id="disconnectDoctorBtn">Отключить врача</button>
+      </div>
+    </div>
+
+    <div class="settings-block switch-row" style="margin-top:16px;">
+      <label for="moodDiaryShareToggle">Показывать врачу дневник настроения</label>
+      <input id="moodDiaryShareToggle" type="checkbox">
+    </div>
+    <div class="settings-hint">По умолчанию выключено. Врач увидит дневник, только если вы сами его включите — и узнает, если вы его выключите.</div>
+
+    <div class="recovery-code-box">
+      <div class="connect-caption">Код восстановления доступа</div>
+      <div class="recovery-code-display" id="recoveryCodeDisplay">————————</div>
+      <div class="recovery-warning">Сохраните этот код — он понадобится, если вы смените устройство или очистите браузер.</div>
+      <button type="button" class="btn-ghost" id="copyRecoveryCodeBtn" style="width:100%;margin-top:10px;">Скопировать</button>
+    </div>
+
+    <div class="form-actions" style="margin-top:14px;">
+      <button type="button" class="btn-ghost" id="connectCloseBtn" style="width:100%;">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="celebrate-overlay hidden" id="welcomeOverlay">
+  <div class="celebrate-card day-modal-card">
+    <div class="section-heading"><h2>Компаньон</h2></div>
+    <div class="connect-caption">Похоже, вы открываете это приложение на новом устройстве или в новом браузере.</div>
+    <button type="button" class="btn-primary" id="welcomeStartNewBtn" style="width:100%;margin-top:10px;">Начать заново</button>
+
+    <div class="welcome-divider">или</div>
+
+    <div class="connect-caption">У вас уже есть код восстановления?</div>
+    <input id="welcomeRecoveryInput" type="text" placeholder="Например, AB12CD34" maxlength="8" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--card-alt);color:var(--text);text-transform:uppercase;letter-spacing:2px;text-align:center;margin-top:8px;">
+    <div class="error-text hidden" id="welcomeRecoveryError" style="margin-top:8px;"></div>
+    <button type="button" class="btn-primary" id="welcomeRecoveryBtn" style="width:100%;margin-top:10px;">Восстановить доступ</button>
+  </div>
+</div>
+
+<div class="celebrate-overlay hidden" id="messagesOverlay">
+  <div class="celebrate-card day-modal-card">
+    <div class="section-heading"><h2>Сообщения от врача</h2></div>
+    <div class="messages-scroll" id="messagesList"></div>
+    <div class="empty-state hidden" id="messagesEmpty">Пока нет сообщений от врача.</div>
+    <div class="form-actions" style="margin-top:10px;">
+      <button type="button" class="btn-ghost" id="messagesCloseBtn" style="width:100%;">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

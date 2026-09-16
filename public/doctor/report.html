@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёт пациента</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#fff;
+    color:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    padding:28px 32px 60px;
+    max-width:760px;
+    margin:0 auto;
+  }
+  h1{font-size:20px; margin:0 0 4px;}
+  .subtitle{font-size:13px; color:#444; margin:0 0 20px;}
+  h2{font-size:15px; margin:26px 0 10px; border-bottom:1px solid #000; padding-bottom:4px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{border:1px solid #999; padding:5px 8px; text-align:left;}
+  th{background:#f0f0f0;}
+  .status-line{font-size:13px; margin:4px 0 16px;}
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .toolbar button{
+    border:1px solid #000;
+    background:#fff;
+    color:#000;
+    padding:8px 16px;
+    font-size:13px;
+    cursor:pointer;
+    border-radius:6px;
+  }
+  .empty{color:#555; font-style:italic; font-size:13px;}
+  @media print{
+    .toolbar{display:none;}
+    body{padding:0 8px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button type="button" id="printBtn">Печать / Сохранить как PDF</button>
+  <button type="button" id="backBtn">← Назад в панель врача</button>
+</div>
+
+<div id="content">Загрузка…</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const DOCTOR_ID_KEY = "careDoctorId_v1";
+  const DOCTOR_TOKEN_KEY = "careDoctorToken_v1";
+  const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  const WEEKDAY_KEYS = ["sun","mon","tue","wed","thu","fri","sat"];
+  const WEEKDAY_ORDER = ["mon","tue","wed","thu","fri","sat","sun"];
+  const WEEKDAY_LABELS = { mon:"Пн", tue:"Вт", wed:"Ср", thu:"Чт", fri:"Пт", sat:"Сб", sun:"Вс" };
+  const MOOD_LABELS = { calm:"Спокойно", content:"Хорошо", tired:"Устало", stressed:"Напряжённо", neutral:"Никак" };
+
+  function formatDate(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+  function realTodayStr(){ return formatDate(new Date()); }
+  function addDays(dateStr, delta){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setDate(dt.getDate()+delta);
+    return formatDate(dt);
+  }
+  function formatDisplayDate(dateStr){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    return d + " " + MONTHS_GEN[m-1] + " " + y;
+  }
+  function dowKey(dateStr){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    return WEEKDAY_KEYS[new Date(y, m-1, d).getDay()];
+  }
+  function formatWeekdaysShort(arr){
+    if(!Array.isArray(arr) || arr.length === 0) return "не выбраны дни";
+    return WEEKDAY_ORDER.filter(k => arr.indexOf(k) !== -1).map(k => WEEKDAY_LABELS[k]).join(", ");
+  }
+  function escapeHtml(str){
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function isPausedOn(task, dateStr){
+    if(!Array.isArray(task.pausedRanges)) return false;
+    return task.pausedRanges.some(r => dateStr >= r.from && (r.to === null || r.to === undefined || dateStr <= r.to));
+  }
+  function isDueOn(task, dateStr){
+    if(dateStr < task.createdDate) return false;
+    if(isPausedOn(task, dateStr)) return false;
+    if(task.type === "once") return dateStr === task.createdDate;
+    if(task.type === "ongoing") return true;
+    if(task.type === "weekday") return Array.isArray(task.weekdays) && task.weekdays.indexOf(dowKey(dateStr)) !== -1;
+    if(task.type === "course"){
+      const countBefore = task.completions.filter(d => d < dateStr).length;
+      return countBefore < task.courseTotal;
+    }
+    return false;
+  }
+  function isDoneOn(task, dateStr){
+    return task.completions.indexOf(dateStr) !== -1;
+  }
+  function courseProgress(task){
+    return Math.min(task.completions.length, task.courseTotal);
+  }
+  function dayStats(tasks, dateStr){
+    let due = 0, done = 0;
+    tasks.forEach(task => {
+      if(isDueOn(task, dateStr)){
+        due++;
+        if(isDoneOn(task, dateStr)) done++;
+      }
+    });
+    return { due, done };
+  }
+  function taskScheduleText(task){
+    const parts = [];
+    if(task.time) parts.push(task.time);
+    if(task.type === "once") parts.push("Разово");
+    else if(task.type === "ongoing") parts.push("Ежедневно");
+    else if(task.type === "weekday") parts.push("По дням: " + formatWeekdaysShort(task.weekdays));
+    else if(task.type === "course") parts.push("Курс: " + courseProgress(task) + " из " + task.courseTotal + " дней");
+    return parts.join(" · ");
+  }
+  function taskStatusText(task, today){
+    if(isPausedOn(task, today)) return "На паузе";
+    if(task.type === "course" && courseProgress(task) >= task.courseTotal) return "Курс завершён";
+    if(!isDueOn(task, today)) return "Сегодня не назначено";
+    return isDoneOn(task, today) ? "Выполнено сегодня" : "Не выполнено сегодня";
+  }
+
+  function qs(name){
+    return new URLSearchParams(location.search).get(name);
+  }
+
+  async function load(){
+    const contentEl = document.getElementById("content");
+    const doctorId = localStorage.getItem(DOCTOR_ID_KEY);
+    const token = localStorage.getItem(DOCTOR_TOKEN_KEY);
+    const patientId = qs("patientId");
+
+    if(!doctorId || !token || !patientId){
+      contentEl.innerHTML = "<p class=\"empty\">Не удалось открыть отчёт: нет данных о враче или пациенте. Откройте эту страницу кнопкой «Печать отчёта» из панели врача.</p>";
+      return;
+    }
+
+    let detail;
+    try{
+      const res = await fetch("/api/doctors/" + doctorId + "/patients/" + patientId, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      detail = await res.json();
+    }catch(e){
+      contentEl.innerHTML = "<p class=\"empty\">Не удалось загрузить данные пациента. Возможно, сессия врача истекла — вернитесь в панель и войдите заново.</p>";
+      return;
+    }
+
+    render(detail);
+  }
+
+  function render(detail){
+    const today = realTodayStr();
+    const tasks = detail.tasks || [];
+
+    let html = "";
+    html += "<h1>Отчёт по компаньону «" + escapeHtml(detail.companionName) + "»</h1>";
+    html += "<div class=\"subtitle\">Сформировано " + formatDisplayDate(today) + "</div>";
+    html += "<div class=\"status-line\">" + escapeHtml(detail.attentionSummary || "") + "</div>";
+
+    html += "<h2>Текущие обязательства</h2>";
+    if(tasks.length === 0){
+      html += "<p class=\"empty\">Активных задач нет.</p>";
+    }else{
+      html += "<table><thead><tr><th>Название</th><th>Периодичность</th><th>Статус</th></tr></thead><tbody>";
+      tasks.forEach(task => {
+        html += "<tr><td>" + escapeHtml(task.name) + (task.assignedByDoctorName ? " <em>(назначено врачом " + escapeHtml(task.assignedByDoctorName) + ")</em>" : "") + "</td>" +
+                "<td>" + escapeHtml(taskScheduleText(task)) + "</td>" +
+                "<td>" + escapeHtml(taskStatusText(task, today)) + "</td></tr>";
+      });
+      html += "</tbody></table>";
+    }
+
+    html += "<h2>Выполнение за последние 30 дней</h2>";
+    html += "<table><thead><tr><th>Дата</th><th>Назначено</th><th>Выполнено</th><th>Статус</th></tr></thead><tbody>";
+    for(let i = 29; i >= 0; i--){
+      const d = addDays(today, -i);
+      const s = dayStats(tasks, d);
+      let status;
+      if(s.due === 0) status = "Дел не было";
+      else if(s.done >= s.due) status = "Выполнено";
+      else if(s.done === 0) status = "Пропущено";
+      else status = "Частично";
+      html += "<tr><td>" + formatDisplayDate(d) + "</td><td>" + s.due + "</td><td>" + s.done + "</td><td>" + status + "</td></tr>";
+    }
+    html += "</tbody></table>";
+
+    if(detail.journal){
+      html += "<h2>Дневник настроения</h2>";
+      const dates = Object.keys(detail.journal).sort().reverse();
+      if(dates.length === 0){
+        html += "<p class=\"empty\">Записей пока нет.</p>";
+      }else{
+        html += "<table><thead><tr><th>Дата</th><th>Настроение</th><th>Заметка</th></tr></thead><tbody>";
+        dates.forEach(d => {
+          const entry = detail.journal[d];
+          html += "<tr><td>" + formatDisplayDate(d) + "</td><td>" + (entry.mood ? escapeHtml(MOOD_LABELS[entry.mood] || entry.mood) : "—") + "</td><td>" + (entry.note ? escapeHtml(entry.note) : "—") + "</td></tr>";
+        });
+        html += "</tbody></table>";
+      }
+    }
+
+    document.getElementById("content").innerHTML = html;
+  }
+
+  document.getElementById("printBtn").addEventListener("click", () => window.print());
+  document.getElementById("backBtn").addEventListener("click", () => { window.close(); location.href = "/doctor"; });
+
+  load();
+})();
+</script>
+</body>
+</html>

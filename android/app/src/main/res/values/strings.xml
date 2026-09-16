@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Незабудка</string>
+    <string name="title_activity_main">Незабудка</string>
+    <string name="package_name">com.nezabudka.patient</string>
+    <string name="custom_url_scheme">com.nezabudka.patient</string>
+</resources>
