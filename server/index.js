@@ -10,6 +10,7 @@ try {
   // .env is optional - fall back to PORT from the real environment, or the default below.
 }
 
+const { migrate } = require("./migrate");
 const patientRoutes = require("./routes/patient");
 const doctorRoutes = require("./routes/doctor");
 
@@ -48,6 +49,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Care companion server listening on http://localhost:" + PORT);
-});
+migrate()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log("Care companion server listening on http://localhost:" + PORT);
+      console.log(
+        process.env.DATABASE_URL
+          ? "Storage: Postgres (DATABASE_URL)"
+          : "Storage: local SQLite file (data.sqlite)"
+      );
+    });
+  })
+  .catch((err) => {
+    console.error("Database migration failed, server not started:", err);
+    process.exit(1);
+  });

@@ -1,7 +1,7 @@
 "use strict";
 
 const bcrypt = require("bcryptjs");
-const db = require("./db");
+const { query } = require("./db");
 const calc = require("./calc");
 const { randomId, randomPairingCode, randomRecoveryCode, randomSessionToken } = require("./ids");
 
@@ -10,6 +10,18 @@ const ATTENTION_THRESHOLD_PCT = 50;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+async function get(sql, params) {
+  const { rows } = await query(sql, params);
+  return rows[0] || null;
+}
+async function all(sql, params) {
+  const { rows } = await query(sql, params);
+  return rows;
+}
+async function run(sql, params) {
+  return query(sql, params);
 }
 
 // ---------- row <-> object mapping ----------
@@ -31,46 +43,50 @@ function obligationRowToObject(row, completions) {
   };
 }
 
-function getCompletionsFor(obligationId) {
-  const rows = db
-    .prepare("SELECT date FROM completions WHERE obligation_id = ? ORDER BY date ASC")
-    .all(obligationId);
+async function getCompletionsFor(obligationId) {
+  const rows = await all(
+    "SELECT date FROM completions WHERE obligation_id = $1 ORDER BY date ASC",
+    [obligationId]
+  );
   return rows.map((r) => r.date);
 }
 
-function listObligationObjects(patientId) {
-  const rows = db
-    .prepare("SELECT * FROM obligations WHERE patient_id = ? ORDER BY created_at ASC")
-    .all(patientId);
-  return rows.map((row) => obligationRowToObject(row, getCompletionsFor(row.id)));
+async function listObligationObjects(patientId) {
+  const rows = await all(
+    "SELECT * FROM obligations WHERE patient_id = $1 ORDER BY created_at ASC",
+    [patientId]
+  );
+  return Promise.all(
+    rows.map(async (row) => obligationRowToObject(row, await getCompletionsFor(row.id)))
+  );
 }
 
-function getObligationObject(obligationId) {
-  const row = db.prepare("SELECT * FROM obligations WHERE id = ?").get(obligationId);
+async function getObligationObject(obligationId) {
+  const row = await get("SELECT * FROM obligations WHERE id = $1", [obligationId]);
   if (!row) return null;
-  return obligationRowToObject(row, getCompletionsFor(row.id));
+  return obligationRowToObject(row, await getCompletionsFor(row.id));
 }
 
 // ---------- patients ----------
-function generateUniquePairingCode() {
+async function generateUniquePairingCode() {
   for (let i = 0; i < 20; i++) {
     const code = randomPairingCode();
-    const existing = db.prepare("SELECT id FROM patients WHERE pairing_code = ?").get(code);
+    const existing = await get("SELECT id FROM patients WHERE pairing_code = $1", [code]);
     if (!existing) return code;
   }
   throw new Error("Could not generate a unique pairing code");
 }
 
-function generateUniqueRecoveryCode() {
+async function generateUniqueRecoveryCode() {
   for (let i = 0; i < 20; i++) {
     const code = randomRecoveryCode();
-    const existing = db.prepare("SELECT id FROM patients WHERE recovery_code = ?").get(code);
+    const existing = await get("SELECT id FROM patients WHERE recovery_code = $1", [code]);
     if (!existing) return code;
   }
   throw new Error("Could not generate a unique recovery code");
 }
 
-function seedDemoObligations(patientId) {
+async function seedDemoObligations(patientId) {
   const today = calc.realTodayStr();
   const seeds = [
     {
@@ -104,66 +120,87 @@ function seedDemoObligations(patientId) {
       completions: [calc.addDays(today, -1), calc.addDays(today, -2)],
     },
   ];
-  const insertObligation = db.prepare(`
-    INSERT INTO obligations (id, patient_id, name, type, time, weekdays, course_total, course_completed_notified, created_date, paused_ranges, assigned_by_doctor_id, assigned_by_doctor_name, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '[]', NULL, NULL, ?)
-  `);
-  const insertCompletion = db.prepare(
-    "INSERT INTO completions (obligation_id, patient_id, date) VALUES (?, ?, ?)"
-  );
-  seeds.forEach((s) => {
-    insertObligation.run(
-      s.id,
-      patientId,
-      s.name,
-      s.type,
-      s.time,
-      JSON.stringify(s.weekdays),
-      s.courseTotal,
-      s.createdDate,
-      nowIso()
+
+  for (const s of seeds) {
+    await run(
+      `
+      INSERT INTO obligations (id, patient_id, name, type, time, weekdays, course_total, course_completed_notified, created_date, paused_ranges, assigned_by_doctor_id, assigned_by_doctor_name, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, '[]', NULL, NULL, $9)
+    `,
+      [
+        s.id,
+        patientId,
+        s.name,
+        s.type,
+        s.time,
+        JSON.stringify(s.weekdays),
+        s.courseTotal,
+        s.createdDate,
+        nowIso(),
+      ]
     );
-    s.completions.forEach((d) => insertCompletion.run(s.id, patientId, d));
-  });
+    for (const d of s.completions) {
+      await run("INSERT INTO completions (obligation_id, patient_id, date) VALUES ($1, $2, $3)", [
+        s.id,
+        patientId,
+        d,
+      ]);
+    }
+  }
 
-  db.prepare(
-    "INSERT INTO rewards (id, patient_id, name, cost) VALUES (?, ?, ?, ?)"
-  ).run(randomId("r"), patientId, "Чашка любимого чая", 20);
-  db.prepare(
-    "INSERT INTO rewards (id, patient_id, name, cost) VALUES (?, ?, ?, ?)"
-  ).run(randomId("r"), patientId, "Серия сериала без чувства вины", 35);
-  db.prepare(
-    "INSERT INTO rewards (id, patient_id, name, cost) VALUES (?, ?, ?, ?)"
-  ).run(randomId("r"), patientId, "Долгая прогулка без дел в голове", 50);
+  await run("INSERT INTO rewards (id, patient_id, name, cost) VALUES ($1, $2, $3, $4)", [
+    randomId("r"),
+    patientId,
+    "Чашка любимого чая",
+    20,
+  ]);
+  await run("INSERT INTO rewards (id, patient_id, name, cost) VALUES ($1, $2, $3, $4)", [
+    randomId("r"),
+    patientId,
+    "Серия сериала без чувства вины",
+    35,
+  ]);
+  await run("INSERT INTO rewards (id, patient_id, name, cost) VALUES ($1, $2, $3, $4)", [
+    randomId("r"),
+    patientId,
+    "Долгая прогулка без дел в голове",
+    50,
+  ]);
 
-  db.prepare(
-    "INSERT INTO mood_journal (patient_id, date, mood, note) VALUES (?, ?, ?, ?)"
-  ).run(patientId, calc.addDays(today, -1), "calm", "Спокойный день, ничего особенного, но дела сделаны.");
+  await run("INSERT INTO mood_journal (patient_id, date, mood, note) VALUES ($1, $2, $3, $4)", [
+    patientId,
+    calc.addDays(today, -1),
+    "calm",
+    "Спокойный день, ничего особенного, но дела сделаны.",
+  ]);
 }
 
-function createPatient() {
+async function createPatient() {
   const id = randomId("p");
-  const pairingCode = generateUniquePairingCode();
-  const recoveryCode = generateUniqueRecoveryCode();
+  const pairingCode = await generateUniquePairingCode();
+  const recoveryCode = await generateUniqueRecoveryCode();
   const now = nowIso();
-  db.prepare(`
+  await run(
+    `
     INSERT INTO patients (id, companion_name, pairing_code, points, virtual_offset, theme, sound_enabled, created_at, recovery_code, pairing_code_generated_at, mood_diary_shared)
-    VALUES (?, 'Незабудка', ?, 40, 0, 'light', 1, ?, ?, ?, 0)
-  `).run(id, pairingCode, now, recoveryCode, now);
-  seedDemoObligations(id);
+    VALUES ($1, 'Незабудка', $2, 40, 0, 'light', 1, $3, $4, $5, 0)
+  `,
+    [id, pairingCode, now, recoveryCode, now]
+  );
+  await seedDemoObligations(id);
   return id;
 }
 
 // Patients created before recovery codes / pairing-code expiry existed have
 // NULL in these columns; backfill lazily on first read so old demo data
 // keeps working instead of erroring out.
-function ensurePatientMigratedFields(patientRow) {
+async function ensurePatientMigratedFields(patientRow) {
   if (!patientRow) return patientRow;
   let changed = false;
   let recoveryCode = patientRow.recovery_code;
   let generatedAt = patientRow.pairing_code_generated_at;
   if (!recoveryCode) {
-    recoveryCode = generateUniqueRecoveryCode();
+    recoveryCode = await generateUniqueRecoveryCode();
     changed = true;
   }
   if (!generatedAt) {
@@ -171,20 +208,22 @@ function ensurePatientMigratedFields(patientRow) {
     changed = true;
   }
   if (changed) {
-    db.prepare(
-      "UPDATE patients SET recovery_code = ?, pairing_code_generated_at = ? WHERE id = ?"
-    ).run(recoveryCode, generatedAt, patientRow.id);
+    await run("UPDATE patients SET recovery_code = $1, pairing_code_generated_at = $2 WHERE id = $3", [
+      recoveryCode,
+      generatedAt,
+      patientRow.id,
+    ]);
     return getPatientRowRaw(patientRow.id);
   }
   return patientRow;
 }
 
-function getPatientRowRaw(patientId) {
-  return db.prepare("SELECT * FROM patients WHERE id = ?").get(patientId);
+async function getPatientRowRaw(patientId) {
+  return get("SELECT * FROM patients WHERE id = $1", [patientId]);
 }
 
-function getPatientRow(patientId) {
-  return ensurePatientMigratedFields(getPatientRowRaw(patientId));
+async function getPatientRow(patientId) {
+  return ensurePatientMigratedFields(await getPatientRowRaw(patientId));
 }
 
 function isPairingCodeExpired(patientRow) {
@@ -193,23 +232,23 @@ function isPairingCodeExpired(patientRow) {
   return Date.now() - generated > PAIRING_CODE_TTL_MS;
 }
 
-function regeneratePairingCode(patientId) {
-  const patient = getPatientRow(patientId);
+async function regeneratePairingCode(patientId) {
+  const patient = await getPatientRow(patientId);
   if (!patient) return null;
-  const code = generateUniquePairingCode();
+  const code = await generateUniquePairingCode();
   const now = nowIso();
-  db.prepare("UPDATE patients SET pairing_code = ?, pairing_code_generated_at = ? WHERE id = ?").run(
+  await run("UPDATE patients SET pairing_code = $1, pairing_code_generated_at = $2 WHERE id = $3", [
     code,
     now,
-    patientId
-  );
+    patientId,
+  ]);
   return getPatientRow(patientId);
 }
 
-function getPatientByRecoveryCode(recoveryCode) {
+async function getPatientByRecoveryCode(recoveryCode) {
   const code = (recoveryCode || "").trim().toUpperCase();
   if (!code) return null;
-  const row = db.prepare("SELECT id FROM patients WHERE recovery_code = ?").get(code);
+  const row = await get("SELECT id FROM patients WHERE recovery_code = $1", [code]);
   return row ? row.id : null;
 }
 
@@ -217,47 +256,47 @@ function patientVirtualToday(patientRow) {
   return calc.addDays(calc.realTodayStr(), patientRow.virtual_offset || 0);
 }
 
-function getLinkedDoctorForPatient(patientId) {
-  const link = db
-    .prepare("SELECT doctor_id FROM doctor_patient_links WHERE patient_id = ?")
-    .get(patientId);
+async function getLinkedDoctorForPatient(patientId) {
+  const link = await get("SELECT doctor_id FROM doctor_patient_links WHERE patient_id = $1", [
+    patientId,
+  ]);
   if (!link) return null;
-  const doctor = db.prepare("SELECT * FROM doctors WHERE id = ?").get(link.doctor_id);
+  const doctor = await get("SELECT * FROM doctors WHERE id = $1", [link.doctor_id]);
   if (!doctor) return null;
   return { id: doctor.id, name: doctor.name };
 }
 
-function getFullPatientState(patientId) {
-  const patientRow = getPatientRow(patientId);
+async function getFullPatientState(patientId) {
+  const patientRow = await getPatientRow(patientId);
   if (!patientRow) return null;
 
-  const obligations = listObligationObjects(patientId);
-  const journalRows = db
-    .prepare("SELECT date, mood, note FROM mood_journal WHERE patient_id = ?")
-    .all(patientId);
+  const obligations = await listObligationObjects(patientId);
+  const journalRows = await all("SELECT date, mood, note FROM mood_journal WHERE patient_id = $1", [
+    patientId,
+  ]);
   const journal = {};
   journalRows.forEach((r) => {
     journal[r.date] = { mood: r.mood, note: r.note || "" };
   });
 
-  const rewards = db
-    .prepare("SELECT id, name, cost FROM rewards WHERE patient_id = ?")
-    .all(patientId);
-  const rewardsLog = db
-    .prepare("SELECT id, reward_id as rewardId, name, cost, date FROM rewards_log WHERE patient_id = ? ORDER BY id ASC")
-    .all(patientId);
+  const rewards = await all("SELECT id, name, cost FROM rewards WHERE patient_id = $1", [patientId]);
+  const rewardsLog = await all(
+    "SELECT id, reward_id as \"rewardId\", name, cost, date FROM rewards_log WHERE patient_id = $1 ORDER BY id ASC",
+    [patientId]
+  );
 
-  const doctor = getLinkedDoctorForPatient(patientId);
+  const doctor = await getLinkedDoctorForPatient(patientId);
 
-  const unreadMessageCount = db
-    .prepare("SELECT COUNT(*) as c FROM doctor_messages WHERE patient_id = ? AND read_at IS NULL")
-    .get(patientId).c;
+  const unreadMessageCountRow = await get(
+    "SELECT COUNT(*) as c FROM doctor_messages WHERE patient_id = $1 AND read_at IS NULL",
+    [patientId]
+  );
+  const unreadMessageCount = Number(unreadMessageCountRow.c);
 
-  const notices = db
-    .prepare(
-      "SELECT id, doctor_name as doctorName, summary, created_at as createdAt FROM schedule_notices WHERE patient_id = ? AND seen_at IS NULL ORDER BY created_at ASC"
-    )
-    .all(patientId);
+  const notices = await all(
+    "SELECT id, doctor_name as \"doctorName\", summary, created_at as \"createdAt\" FROM schedule_notices WHERE patient_id = $1 AND seen_at IS NULL ORDER BY created_at ASC",
+    [patientId]
+  );
 
   return {
     id: patientRow.id,
@@ -280,29 +319,39 @@ function getFullPatientState(patientId) {
   };
 }
 
-function updatePatientSettings(patientId, { companionName, theme, soundEnabled, moodDiaryShared }) {
-  const patient = getPatientRow(patientId);
+async function updatePatientSettings(patientId, { companionName, theme, soundEnabled, moodDiaryShared }) {
+  const patient = await getPatientRow(patientId);
   if (!patient) return null;
-  const nextName = typeof companionName === "string" && companionName.trim() ? companionName.trim() : patient.companion_name;
+  const nextName =
+    typeof companionName === "string" && companionName.trim() ? companionName.trim() : patient.companion_name;
   const nextTheme = theme === "dark" ? "dark" : theme === "light" ? "light" : patient.theme;
   const nextSound = typeof soundEnabled === "boolean" ? (soundEnabled ? 1 : 0) : patient.sound_enabled;
-  const nextMoodShared = typeof moodDiaryShared === "boolean" ? (moodDiaryShared ? 1 : 0) : patient.mood_diary_shared;
-  db.prepare(
-    "UPDATE patients SET companion_name = ?, theme = ?, sound_enabled = ?, mood_diary_shared = ? WHERE id = ?"
-  ).run(nextName, nextTheme, nextSound, nextMoodShared, patientId);
+  const nextMoodShared =
+    typeof moodDiaryShared === "boolean" ? (moodDiaryShared ? 1 : 0) : patient.mood_diary_shared;
+  await run(
+    "UPDATE patients SET companion_name = $1, theme = $2, sound_enabled = $3, mood_diary_shared = $4 WHERE id = $5",
+    [nextName, nextTheme, nextSound, nextMoodShared, patientId]
+  );
 
   if (typeof moodDiaryShared === "boolean" && !!patient.mood_diary_shared !== moodDiaryShared) {
-    const doctor = getLinkedDoctorForPatient(patientId);
+    const doctor = await getLinkedDoctorForPatient(patientId);
     if (doctor) {
-      db.prepare(`
+      await run(
+        `
         INSERT INTO doctor_notices (id, doctor_id, patient_id, summary, created_at, seen_at)
-        VALUES (?, ?, ?, ?, ?, NULL)
-      `).run(
-        randomId("dn"),
-        doctor.id,
-        patientId,
-        "Пациент «" + patient.companion_name + "» " + (moodDiaryShared ? "включил(а)" : "выключил(а)") + " доступ к дневнику настроения",
-        nowIso()
+        VALUES ($1, $2, $3, $4, $5, NULL)
+      `,
+        [
+          randomId("dn"),
+          doctor.id,
+          patientId,
+          "Пациент «" +
+            patient.companion_name +
+            "» " +
+            (moodDiaryShared ? "включил(а)" : "выключил(а)") +
+            " доступ к дневнику настроения",
+          nowIso(),
+        ]
       );
     }
   }
@@ -310,58 +359,65 @@ function updatePatientSettings(patientId, { companionName, theme, soundEnabled, 
   return getPatientRow(patientId);
 }
 
-function setVirtualOffset(patientId, delta) {
-  const patient = getPatientRow(patientId);
+async function setVirtualOffset(patientId, delta) {
+  const patient = await getPatientRow(patientId);
   if (!patient) return null;
   const next = delta === 0 ? 0 : (patient.virtual_offset || 0) + delta;
-  db.prepare("UPDATE patients SET virtual_offset = ? WHERE id = ?").run(next, patientId);
+  await run("UPDATE patients SET virtual_offset = $1 WHERE id = $2", [next, patientId]);
   return next;
 }
 
-function disconnectDoctor(patientId) {
-  db.prepare("DELETE FROM doctor_patient_links WHERE patient_id = ?").run(patientId);
+async function disconnectDoctor(patientId) {
+  await run("DELETE FROM doctor_patient_links WHERE patient_id = $1", [patientId]);
 }
 
-function markNoticesSeen(patientId) {
-  db.prepare(
-    "UPDATE schedule_notices SET seen_at = ? WHERE patient_id = ? AND seen_at IS NULL"
-  ).run(nowIso(), patientId);
+async function markNoticesSeen(patientId) {
+  await run("UPDATE schedule_notices SET seen_at = $1 WHERE patient_id = $2 AND seen_at IS NULL", [
+    nowIso(),
+    patientId,
+  ]);
 }
 
 // ---------- obligations ----------
-function createObligation(patientId, payload, doctorMeta) {
-  const patient = getPatientRow(patientId);
+async function createObligation(patientId, payload, doctorMeta) {
+  const patient = await getPatientRow(patientId);
   if (!patient) return null;
   const id = randomId("t");
   const createdDate = patientVirtualToday(patient);
-  db.prepare(`
+  await run(
+    `
     INSERT INTO obligations (id, patient_id, name, type, time, weekdays, course_total, course_completed_notified, created_date, paused_ranges, assigned_by_doctor_id, assigned_by_doctor_name, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, '[]', ?, ?, ?)
-  `).run(
-    id,
-    patientId,
-    payload.name,
-    payload.type,
-    payload.time || "",
-    JSON.stringify(payload.type === "weekday" ? payload.weekdays || [] : []),
-    payload.type === "course" ? payload.courseTotal || 7 : null,
-    createdDate,
-    doctorMeta ? doctorMeta.id : null,
-    doctorMeta ? doctorMeta.name : null,
-    nowIso()
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, '[]', $9, $10, $11)
+  `,
+    [
+      id,
+      patientId,
+      payload.name,
+      payload.type,
+      payload.time || "",
+      JSON.stringify(payload.type === "weekday" ? payload.weekdays || [] : []),
+      payload.type === "course" ? payload.courseTotal || 7 : null,
+      createdDate,
+      doctorMeta ? doctorMeta.id : null,
+      doctorMeta ? doctorMeta.name : null,
+      nowIso(),
+    ]
   );
 
   if (doctorMeta) {
-    db.prepare(`
+    await run(
+      `
       INSERT INTO schedule_notices (id, patient_id, doctor_id, doctor_name, summary, created_at, seen_at)
-      VALUES (?, ?, ?, ?, ?, ?, NULL)
-    `).run(
-      randomId("n"),
-      patientId,
-      doctorMeta.id,
-      doctorMeta.name,
-      "Врач " + doctorMeta.name + " добавил(а) новую задачу: «" + payload.name + "»",
-      nowIso()
+      VALUES ($1, $2, $3, $4, $5, $6, NULL)
+    `,
+      [
+        randomId("n"),
+        patientId,
+        doctorMeta.id,
+        doctorMeta.name,
+        "Врач " + doctorMeta.name + " добавил(а) новую задачу: «" + payload.name + "»",
+        nowIso(),
+      ]
     );
   }
 
@@ -390,8 +446,11 @@ function describeObligationChanges(oldRow, payload, type, weekdays, courseTotal)
   return parts;
 }
 
-function updateObligation(obligationId, patientId, payload, doctorMeta) {
-  const row = db.prepare("SELECT * FROM obligations WHERE id = ? AND patient_id = ?").get(obligationId, patientId);
+async function updateObligation(obligationId, patientId, payload, doctorMeta) {
+  const row = await get("SELECT * FROM obligations WHERE id = $1 AND patient_id = $2", [
+    obligationId,
+    patientId,
+  ]);
   if (!row) return null;
 
   const type = payload.type;
@@ -400,47 +459,59 @@ function updateObligation(obligationId, patientId, payload, doctorMeta) {
 
   const changedParts = doctorMeta ? describeObligationChanges(row, payload, type, weekdays, courseTotal) : [];
 
-  db.prepare(`
+  await run(
+    `
     UPDATE obligations
-    SET name = ?, type = ?, time = ?, weekdays = ?, course_total = ?, paused_ranges = paused_ranges
-    WHERE id = ?
-  `).run(payload.name, type, payload.time || "", JSON.stringify(weekdays), courseTotal, obligationId);
+    SET name = $1, type = $2, time = $3, weekdays = $4, course_total = $5
+    WHERE id = $6
+  `,
+    [payload.name, type, payload.time || "", JSON.stringify(weekdays), courseTotal, obligationId]
+  );
 
   if (doctorMeta) {
     const changeText = changedParts.length ? changedParts.join(", ") : "детали";
-    db.prepare(`
+    await run(
+      `
       INSERT INTO schedule_notices (id, patient_id, doctor_id, doctor_name, summary, created_at, seen_at)
-      VALUES (?, ?, ?, ?, ?, ?, NULL)
-    `).run(
-      randomId("n"),
-      patientId,
-      doctorMeta.id,
-      doctorMeta.name,
-      "Врач " + doctorMeta.name + " изменил(а) задачу «" + row.name + "»: " + changeText,
-      nowIso()
+      VALUES ($1, $2, $3, $4, $5, $6, NULL)
+    `,
+      [
+        randomId("n"),
+        patientId,
+        doctorMeta.id,
+        doctorMeta.name,
+        "Врач " + doctorMeta.name + " изменил(а) задачу «" + row.name + "»: " + changeText,
+        nowIso(),
+      ]
     );
   }
 
   return getObligationObject(obligationId);
 }
 
-function deleteObligation(obligationId, patientId, doctorMeta) {
-  const row = db.prepare("SELECT id, name FROM obligations WHERE id = ? AND patient_id = ?").get(obligationId, patientId);
+async function deleteObligation(obligationId, patientId, doctorMeta) {
+  const row = await get("SELECT id, name FROM obligations WHERE id = $1 AND patient_id = $2", [
+    obligationId,
+    patientId,
+  ]);
   if (!row) return false;
-  db.prepare("DELETE FROM completions WHERE obligation_id = ?").run(obligationId);
-  db.prepare("DELETE FROM obligations WHERE id = ?").run(obligationId);
+  await run("DELETE FROM completions WHERE obligation_id = $1", [obligationId]);
+  await run("DELETE FROM obligations WHERE id = $1", [obligationId]);
 
   if (doctorMeta) {
-    db.prepare(`
+    await run(
+      `
       INSERT INTO schedule_notices (id, patient_id, doctor_id, doctor_name, summary, created_at, seen_at)
-      VALUES (?, ?, ?, ?, ?, ?, NULL)
-    `).run(
-      randomId("n"),
-      patientId,
-      doctorMeta.id,
-      doctorMeta.name,
-      "Врач " + doctorMeta.name + " удалил(а) задачу: «" + row.name + "»",
-      nowIso()
+      VALUES ($1, $2, $3, $4, $5, $6, NULL)
+    `,
+      [
+        randomId("n"),
+        patientId,
+        doctorMeta.id,
+        doctorMeta.name,
+        "Врач " + doctorMeta.name + " удалил(а) задачу: «" + row.name + "»",
+        nowIso(),
+      ]
     );
   }
 
@@ -449,9 +520,9 @@ function deleteObligation(obligationId, patientId, doctorMeta) {
 
 const POINTS_PER_COMPLETION = 10;
 
-function completeObligation(obligationId, patientId) {
-  const patient = getPatientRow(patientId);
-  const obligation = getObligationObject(obligationId);
+async function completeObligation(obligationId, patientId) {
+  const patient = await getPatientRow(patientId);
+  const obligation = await getObligationObject(obligationId);
   if (!patient || !obligation || obligation.patientId !== patientId) return null;
 
   const today = patientVirtualToday(patient);
@@ -459,39 +530,39 @@ function completeObligation(obligationId, patientId) {
     return { obligation, justFinished: false, alreadyDone: true };
   }
 
-  db.prepare("INSERT INTO completions (obligation_id, patient_id, date) VALUES (?, ?, ?)").run(
+  await run("INSERT INTO completions (obligation_id, patient_id, date) VALUES ($1, $2, $3)", [
     obligationId,
     patientId,
-    today
-  );
-  db.prepare("UPDATE patients SET points = points + ? WHERE id = ?").run(POINTS_PER_COMPLETION, patientId);
+    today,
+  ]);
+  await run("UPDATE patients SET points = points + $1 WHERE id = $2", [POINTS_PER_COMPLETION, patientId]);
 
-  const updated = getObligationObject(obligationId);
+  const updated = await getObligationObject(obligationId);
   let justFinished = false;
   const progress = Math.min(updated.completions.length, updated.courseTotal || Infinity);
   const isFinished = updated.type === "course" && progress >= updated.courseTotal;
   if (isFinished && !updated.courseCompletedNotified) {
-    db.prepare("UPDATE obligations SET course_completed_notified = 1 WHERE id = ?").run(obligationId);
+    await run("UPDATE obligations SET course_completed_notified = 1 WHERE id = $1", [obligationId]);
     justFinished = true;
   }
 
-  return { obligation: getObligationObject(obligationId), justFinished, alreadyDone: false };
+  return { obligation: await getObligationObject(obligationId), justFinished, alreadyDone: false };
 }
 
-function pauseObligation(obligationId, patientId) {
-  const patient = getPatientRow(patientId);
-  const obligation = getObligationObject(obligationId);
+async function pauseObligation(obligationId, patientId) {
+  const patient = await getPatientRow(patientId);
+  const obligation = await getObligationObject(obligationId);
   if (!patient || !obligation || obligation.patientId !== patientId) return null;
   const today = patientVirtualToday(patient);
   if (calc.isPausedOn(obligation, today)) return obligation;
   const ranges = obligation.pausedRanges.concat([{ from: today, to: null }]);
-  db.prepare("UPDATE obligations SET paused_ranges = ? WHERE id = ?").run(JSON.stringify(ranges), obligationId);
+  await run("UPDATE obligations SET paused_ranges = $1 WHERE id = $2", [JSON.stringify(ranges), obligationId]);
   return getObligationObject(obligationId);
 }
 
-function resumeObligation(obligationId, patientId) {
-  const patient = getPatientRow(patientId);
-  const obligation = getObligationObject(obligationId);
+async function resumeObligation(obligationId, patientId) {
+  const patient = await getPatientRow(patientId);
+  const obligation = await getObligationObject(obligationId);
   if (!patient || !obligation || obligation.patientId !== patientId) return null;
   const today = patientVirtualToday(patient);
   const openIdx = obligation.pausedRanges.findIndex((r) => r.to === null || r.to === undefined);
@@ -502,123 +573,141 @@ function resumeObligation(obligationId, patientId) {
   } else {
     ranges[openIdx] = { from: ranges[openIdx].from, to: calc.addDays(today, -1) };
   }
-  db.prepare("UPDATE obligations SET paused_ranges = ? WHERE id = ?").run(JSON.stringify(ranges), obligationId);
+  await run("UPDATE obligations SET paused_ranges = $1 WHERE id = $2", [JSON.stringify(ranges), obligationId]);
   return getObligationObject(obligationId);
 }
 
 // ---------- journal ----------
-function upsertJournalEntry(patientId, date, mood, note) {
+async function upsertJournalEntry(patientId, date, mood, note) {
   const hasMood = !!mood;
   const hasNote = !!(note && note.trim());
   if (!hasMood && !hasNote) {
-    db.prepare("DELETE FROM mood_journal WHERE patient_id = ? AND date = ?").run(patientId, date);
+    await run("DELETE FROM mood_journal WHERE patient_id = $1 AND date = $2", [patientId, date]);
     return null;
   }
-  const existing = db.prepare("SELECT id FROM mood_journal WHERE patient_id = ? AND date = ?").get(patientId, date);
+  const existing = await get("SELECT id FROM mood_journal WHERE patient_id = $1 AND date = $2", [
+    patientId,
+    date,
+  ]);
   if (existing) {
-    db.prepare("UPDATE mood_journal SET mood = ?, note = ? WHERE id = ?").run(mood || null, note || "", existing.id);
+    await run("UPDATE mood_journal SET mood = $1, note = $2 WHERE id = $3", [
+      mood || null,
+      note || "",
+      existing.id,
+    ]);
   } else {
-    db.prepare("INSERT INTO mood_journal (patient_id, date, mood, note) VALUES (?, ?, ?, ?)").run(
+    await run("INSERT INTO mood_journal (patient_id, date, mood, note) VALUES ($1, $2, $3, $4)", [
       patientId,
       date,
       mood || null,
-      note || ""
-    );
+      note || "",
+    ]);
   }
   return { mood: mood || null, note: note || "" };
 }
 
 // ---------- rewards ----------
-function addReward(patientId, name, cost) {
+async function addReward(patientId, name, cost) {
   const id = randomId("rw");
-  db.prepare("INSERT INTO rewards (id, patient_id, name, cost) VALUES (?, ?, ?, ?)").run(id, patientId, name, cost);
+  await run("INSERT INTO rewards (id, patient_id, name, cost) VALUES ($1, $2, $3, $4)", [
+    id,
+    patientId,
+    name,
+    cost,
+  ]);
   return { id, name, cost };
 }
 
-function redeemReward(patientId, rewardId) {
-  const patient = getPatientRow(patientId);
-  const reward = db.prepare("SELECT * FROM rewards WHERE id = ? AND patient_id = ?").get(rewardId, patientId);
+async function redeemReward(patientId, rewardId) {
+  const patient = await getPatientRow(patientId);
+  const reward = await get("SELECT * FROM rewards WHERE id = $1 AND patient_id = $2", [rewardId, patientId]);
   if (!patient || !reward) return null;
   if (patient.points < reward.cost) return { error: "not_enough_points" };
-  db.prepare("UPDATE patients SET points = points - ? WHERE id = ?").run(reward.cost, patientId);
-  const today = patientVirtualToday(getPatientRow(patientId));
-  db.prepare(
-    "INSERT INTO rewards_log (patient_id, reward_id, name, cost, date) VALUES (?, ?, ?, ?, ?)"
-  ).run(patientId, reward.id, reward.name, reward.cost, today);
+  await run("UPDATE patients SET points = points - $1 WHERE id = $2", [reward.cost, patientId]);
+  const refreshedPatient = await getPatientRow(patientId);
+  const today = patientVirtualToday(refreshedPatient);
+  await run(
+    "INSERT INTO rewards_log (patient_id, reward_id, name, cost, date) VALUES ($1, $2, $3, $4, $5)",
+    [patientId, reward.id, reward.name, reward.cost, today]
+  );
   return { ok: true };
 }
 
 // ---------- doctors ----------
 const BCRYPT_ROUNDS = 10;
 
-function getDoctorRow(doctorId) {
-  return db.prepare("SELECT * FROM doctors WHERE id = ?").get(doctorId);
+async function getDoctorRow(doctorId) {
+  return get("SELECT * FROM doctors WHERE id = $1", [doctorId]);
 }
 
-function getDoctorByName(name) {
-  return db.prepare("SELECT * FROM doctors WHERE name = ?").get(name);
+async function getDoctorByName(name) {
+  return get("SELECT * FROM doctors WHERE name = $1", [name]);
 }
 
-function issueDoctorSession(doctorId) {
+async function issueDoctorSession(doctorId) {
   const token = randomSessionToken();
-  db.prepare("UPDATE doctors SET session_token = ? WHERE id = ?").run(token, doctorId);
+  await run("UPDATE doctors SET session_token = $1 WHERE id = $2", [token, doctorId]);
   return token;
 }
 
 // Single login endpoint covers both first-time registration and subsequent
 // logins: if the name is new (or a legacy doctor row has no password yet),
 // the given password becomes that doctor's password. Otherwise it must match.
-function loginOrRegisterDoctor(name, password) {
-  const existing = getDoctorByName(name);
+async function loginOrRegisterDoctor(name, password) {
+  const existing = await getDoctorByName(name);
 
   if (!existing) {
     const id = randomId("d");
     const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
-    db.prepare(
-      "INSERT INTO doctors (id, name, created_at, password_hash) VALUES (?, ?, ?, ?)"
-    ).run(id, name, nowIso(), passwordHash);
-    const token = issueDoctorSession(id);
+    await run("INSERT INTO doctors (id, name, created_at, password_hash) VALUES ($1, $2, $3, $4)", [
+      id,
+      name,
+      nowIso(),
+      passwordHash,
+    ]);
+    const token = await issueDoctorSession(id);
     return { id, name, token };
   }
 
   if (!existing.password_hash) {
     // Legacy doctor created before passwords existed - set it now.
     const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
-    db.prepare("UPDATE doctors SET password_hash = ? WHERE id = ?").run(passwordHash, existing.id);
-    const token = issueDoctorSession(existing.id);
+    await run("UPDATE doctors SET password_hash = $1 WHERE id = $2", [passwordHash, existing.id]);
+    const token = await issueDoctorSession(existing.id);
     return { id: existing.id, name: existing.name, token };
   }
 
   const ok = bcrypt.compareSync(password, existing.password_hash);
   if (!ok) return { error: "invalid_password" };
-  const token = issueDoctorSession(existing.id);
+  const token = await issueDoctorSession(existing.id);
   return { id: existing.id, name: existing.name, token };
 }
 
-function getDoctorBySessionToken(token) {
+async function getDoctorBySessionToken(token) {
   if (!token) return null;
-  return db.prepare("SELECT * FROM doctors WHERE session_token = ?").get(token);
+  return get("SELECT * FROM doctors WHERE session_token = $1", [token]);
 }
 
-function isDoctorLinkedToPatient(doctorId, patientId) {
-  const link = db
-    .prepare("SELECT 1 as x FROM doctor_patient_links WHERE doctor_id = ? AND patient_id = ?")
-    .get(doctorId, patientId);
+async function isDoctorLinkedToPatient(doctorId, patientId) {
+  const link = await get(
+    "SELECT 1 as x FROM doctor_patient_links WHERE doctor_id = $1 AND patient_id = $2",
+    [doctorId, patientId]
+  );
   return !!link;
 }
 
-function linkPatientByCode(doctorId, pairingCode) {
-  const rawPatient = db
-    .prepare("SELECT * FROM patients WHERE pairing_code = ?")
-    .get((pairingCode || "").trim().toUpperCase());
+async function linkPatientByCode(doctorId, pairingCode) {
+  const rawPatient = await get("SELECT * FROM patients WHERE pairing_code = $1", [
+    (pairingCode || "").trim().toUpperCase(),
+  ]);
   if (!rawPatient) return { error: "not_found" };
-  const patient = ensurePatientMigratedFields(rawPatient);
+  const patient = await ensurePatientMigratedFields(rawPatient);
 
   if (isPairingCodeExpired(patient)) return { error: "expired" };
 
-  const existingLink = db
-    .prepare("SELECT doctor_id FROM doctor_patient_links WHERE patient_id = ?")
-    .get(patient.id);
+  const existingLink = await get("SELECT doctor_id FROM doctor_patient_links WHERE patient_id = $1", [
+    patient.id,
+  ]);
   if (existingLink && existingLink.doctor_id !== doctorId) {
     return { error: "already_linked" };
   }
@@ -626,33 +715,35 @@ function linkPatientByCode(doctorId, pairingCode) {
     return { patientId: patient.id };
   }
 
-  db.prepare(
-    "INSERT INTO doctor_patient_links (doctor_id, patient_id, created_at) VALUES (?, ?, ?)"
-  ).run(doctorId, patient.id, nowIso());
+  await run("INSERT INTO doctor_patient_links (doctor_id, patient_id, created_at) VALUES ($1, $2, $3)", [
+    doctorId,
+    patient.id,
+    nowIso(),
+  ]);
   return { patientId: patient.id };
 }
 
-function getDoctorPatientsSummary(doctorId) {
-  const links = db
-    .prepare("SELECT patient_id FROM doctor_patient_links WHERE doctor_id = ?")
-    .all(doctorId);
-  const summaries = links.map(({ patient_id }) => {
-    const patient = getPatientRow(patient_id);
-    const obligations = listObligationObjects(patient_id);
-    const today = calc.realTodayStr();
-    const pct = calc.computeHealthPercent(obligations, today);
-    const state = calc.healthState(pct);
-    const week = calc.weeklyStats(obligations, today);
-    return {
-      id: patient.id,
-      companionName: patient.companion_name,
-      state,
-      weekDue: week.due,
-      weekDone: week.done,
-      needsAttention: pct < ATTENTION_THRESHOLD_PCT,
-      recentPct: pct,
-    };
-  });
+async function getDoctorPatientsSummary(doctorId) {
+  const links = await all("SELECT patient_id FROM doctor_patient_links WHERE doctor_id = $1", [doctorId]);
+  const summaries = await Promise.all(
+    links.map(async ({ patient_id }) => {
+      const patient = await getPatientRow(patient_id);
+      const obligations = await listObligationObjects(patient_id);
+      const today = calc.realTodayStr();
+      const pct = calc.computeHealthPercent(obligations, today);
+      const state = calc.healthState(pct);
+      const week = calc.weeklyStats(obligations, today);
+      return {
+        id: patient.id,
+        companionName: patient.companion_name,
+        state,
+        weekDue: week.due,
+        weekDone: week.done,
+        needsAttention: pct < ATTENTION_THRESHOLD_PCT,
+        recentPct: pct,
+      };
+    })
+  );
   // Patients needing attention first (worst completion first among them),
   // everyone else after, in their original order.
   return summaries
@@ -665,9 +756,9 @@ function getDoctorPatientsSummary(doctorId) {
     .map(({ s }) => s);
 }
 
-function getPatientDetailForDoctor(doctorId, patientId) {
-  if (!isDoctorLinkedToPatient(doctorId, patientId)) return { error: "not_linked" };
-  const state = getFullPatientState(patientId);
+async function getPatientDetailForDoctor(doctorId, patientId) {
+  if (!(await isDoctorLinkedToPatient(doctorId, patientId))) return { error: "not_linked" };
+  const state = await getFullPatientState(patientId);
   if (!state) return { error: "not_found" };
   const today = calc.realTodayStr();
   const pct = calc.computeHealthPercent(state.tasks, today);
@@ -686,53 +777,76 @@ function getPatientDetailForDoctor(doctorId, patientId) {
 }
 
 // ---------- doctor notices (e.g. patient toggled mood-diary sharing) ----------
-function listDoctorNotices(doctorId) {
-  return db
-    .prepare(
-      "SELECT id, patient_id as patientId, summary, created_at as createdAt FROM doctor_notices WHERE doctor_id = ? AND seen_at IS NULL ORDER BY created_at ASC"
-    )
-    .all(doctorId);
-}
-
-function markDoctorNoticesSeen(doctorId) {
-  db.prepare("UPDATE doctor_notices SET seen_at = ? WHERE doctor_id = ? AND seen_at IS NULL").run(
-    nowIso(),
-    doctorId
+async function listDoctorNotices(doctorId) {
+  return all(
+    "SELECT id, patient_id as \"patientId\", summary, created_at as \"createdAt\" FROM doctor_notices WHERE doctor_id = $1 AND seen_at IS NULL ORDER BY created_at ASC",
+    [doctorId]
   );
 }
 
-function sendDoctorMessage(doctorId, patientId, text) {
-  if (!isDoctorLinkedToPatient(doctorId, patientId)) return { error: "not_linked" };
+async function markDoctorNoticesSeen(doctorId) {
+  await run("UPDATE doctor_notices SET seen_at = $1 WHERE doctor_id = $2 AND seen_at IS NULL", [
+    nowIso(),
+    doctorId,
+  ]);
+}
+
+async function sendDoctorMessage(doctorId, patientId, text) {
+  if (!(await isDoctorLinkedToPatient(doctorId, patientId))) return { error: "not_linked" };
   const id = randomId("m");
-  db.prepare(`
+  await run(
+    `
     INSERT INTO doctor_messages (id, doctor_id, patient_id, text, created_at, read_at)
-    VALUES (?, ?, ?, ?, ?, NULL)
-  `).run(id, doctorId, patientId, text, nowIso());
+    VALUES ($1, $2, $3, $4, $5, NULL)
+  `,
+    [id, doctorId, patientId, text, nowIso()]
+  );
   return { id };
 }
 
-function listMessagesForPatient(patientId) {
-  return db
-    .prepare(
-      `SELECT dm.id, dm.text, dm.created_at as createdAt, dm.read_at as readAt, d.name as doctorName
-       FROM doctor_messages dm JOIN doctors d ON d.id = dm.doctor_id
-       WHERE dm.patient_id = ? ORDER BY dm.created_at DESC`
-    )
-    .all(patientId);
+async function listMessagesForPatient(patientId) {
+  return all(
+    `SELECT dm.id, dm.text, dm.created_at as "createdAt", dm.read_at as "readAt", d.name as "doctorName"
+     FROM doctor_messages dm JOIN doctors d ON d.id = dm.doctor_id
+     WHERE dm.patient_id = $1 ORDER BY dm.created_at DESC`,
+    [patientId]
+  );
 }
 
-function markMessageRead(messageId, patientId) {
-  const row = db.prepare("SELECT id FROM doctor_messages WHERE id = ? AND patient_id = ?").get(messageId, patientId);
+async function markMessageRead(messageId, patientId) {
+  const row = await get("SELECT id FROM doctor_messages WHERE id = $1 AND patient_id = $2", [
+    messageId,
+    patientId,
+  ]);
   if (!row) return false;
-  db.prepare("UPDATE doctor_messages SET read_at = ? WHERE id = ?").run(nowIso(), messageId);
+  await run("UPDATE doctor_messages SET read_at = $1 WHERE id = $2", [nowIso(), messageId]);
   return true;
 }
 
-function markAllMessagesRead(patientId) {
-  db.prepare("UPDATE doctor_messages SET read_at = ? WHERE patient_id = ? AND read_at IS NULL").run(
+async function markAllMessagesRead(patientId) {
+  await run("UPDATE doctor_messages SET read_at = $1 WHERE patient_id = $2 AND read_at IS NULL", [
     nowIso(),
-    patientId
-  );
+    patientId,
+  ]);
+}
+
+// ---------- admin: delete a (test) patient and everything tied to them ----------
+async function deletePatient(patientId) {
+  const patient = await get("SELECT id FROM patients WHERE id = $1", [patientId]);
+  if (!patient) return false;
+
+  await run("DELETE FROM completions WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM obligations WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM doctor_patient_links WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM mood_journal WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM doctor_messages WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM rewards_log WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM rewards WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM schedule_notices WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM doctor_notices WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM patients WHERE id = $1", [patientId]);
+
+  return true;
 }
 
 module.exports = {
@@ -769,4 +883,5 @@ module.exports = {
   getLinkedDoctorForPatient,
   listDoctorNotices,
   markDoctorNoticesSeen,
+  deletePatient,
 };
