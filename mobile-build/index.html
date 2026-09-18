@@ -70,66 +70,325 @@
             </linearGradient>
           </defs>
 
-          <ellipse cx="120" cy="322" rx="72" ry="9" fill="#000" opacity="0.07"/>
+          <ellipse class="ground-shadow" cx="120" cy="322" rx="72" ry="9" fill="#000" opacity="0.07"/>
 
           <g class="plant-group">
             <g id="plantSway">
-              <g class="stem-group">
-                <path class="stem" d="M120,258 C114,222 126,186 118,150 C113,124 123,104 120,90"
-                      stroke="#5C7A45" stroke-width="7" fill="none" stroke-linecap="round"/>
-              </g>
 
-              <g transform="translate(108,205)">
-                <g class="leaf leaf-a" style="transform-origin:0px 0px;">
-                  <ellipse cx="-30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(15)"/>
+              <!-- ===== default: the original forget-me-not silhouette ===== -->
+              <g class="shape-group shape-default">
+                <g class="stem-group">
+                  <path class="stem" d="M120,258 C114,222 126,186 118,150 C113,124 123,104 120,90"
+                        stroke="#5C7A45" stroke-width="7" fill="none" stroke-linecap="round"/>
+                </g>
+
+                <g transform="translate(108,205)">
+                  <g class="leaf leaf-a" style="transform-origin:0px 0px;">
+                    <g class="idle-sway" style="animation-delay:0s; animation-duration:5s;">
+                      <ellipse cx="-30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(15)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(134,178)">
+                  <g class="leaf leaf-b" style="transform-origin:0px 0px;">
+                    <g class="idle-sway" style="animation-delay:.6s; animation-duration:5.6s;">
+                      <ellipse cx="30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(-15)"/>
+                      <g transform="translate(64,-20)">
+                        <g class="flower" style="transform-origin:0px 0px;">
+                          <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(0)"/>
+                          <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(72)"/>
+                          <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(144)"/>
+                          <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(216)"/>
+                          <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(288)"/>
+                          <circle cx="0" cy="0" r="4.5" fill="#E7A4BC"/>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(104,235)">
+                  <g class="leaf leaf-c" style="transform-origin:0px 0px;">
+                    <g class="idle-sway" style="animation-delay:1.2s; animation-duration:4.6s;">
+                      <ellipse cx="-28" cy="0" rx="30" ry="13" fill="url(#leafGrad)" transform="rotate(12)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(138,148)">
+                  <g class="leaf leaf-d" style="transform-origin:0px 0px;">
+                    <g class="idle-sway" style="animation-delay:.3s; animation-duration:5.2s;">
+                      <ellipse cx="28" cy="0" rx="28" ry="12" fill="url(#leafGrad)" transform="rotate(-12)"/>
+                      <g transform="translate(55,-12)">
+                        <g class="flower" style="transform-origin:0px 0px;">
+                          <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(0)"/>
+                          <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(72)"/>
+                          <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(144)"/>
+                          <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(216)"/>
+                          <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(288)"/>
+                          <circle cx="0" cy="0" r="4" fill="#F6E7B8"/>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+
+                <g transform="translate(120,88)">
+                  <g class="flower" style="transform-origin:0px 0px;">
+                    <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(0)"/>
+                    <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(72)"/>
+                    <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(144)"/>
+                    <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(216)"/>
+                    <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(288)"/>
+                    <circle cx="0" cy="0" r="7" fill="#F6E7B8"/>
+                  </g>
                 </g>
               </g>
-              <g transform="translate(134,178)">
-                <g class="leaf leaf-b" style="transform-origin:0px 0px;">
-                  <ellipse cx="30" cy="0" rx="32" ry="14" fill="url(#leafGrad)" transform="rotate(-15)"/>
-                  <g transform="translate(64,-20)">
+
+              <!-- ===== succulent: compact rosette of thick leaf pads, no tall stem ===== -->
+              <g class="shape-group shape-succulent">
+                <g transform="translate(120,250)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-84deg; --droop-dir:-1.1;">
+                    <g class="idle-sway" style="animation-delay:0s; animation-duration:4.2s;">
+                      <ellipse cx="0" cy="-19" rx="13" ry="21" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-56deg; --droop-dir:-1;">
+                    <g class="idle-sway" style="animation-delay:.4s; animation-duration:4.6s;">
+                      <ellipse cx="0" cy="-21" rx="13.5" ry="23" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-27deg; --droop-dir:-.8;">
+                    <g class="idle-sway" style="animation-delay:.8s; animation-duration:5s;">
+                      <ellipse cx="0" cy="-23" rx="14" ry="24" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:2deg; --droop-dir:.6;">
+                    <g class="idle-sway" style="animation-delay:1.2s; animation-duration:5.4s;">
+                      <ellipse cx="0" cy="-24" rx="14" ry="25" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:30deg; --droop-dir:.8;">
+                    <g class="idle-sway" style="animation-delay:1.6s; animation-duration:4.8s;">
+                      <ellipse cx="0" cy="-23" rx="14" ry="24" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:58deg; --droop-dir:1;">
+                    <g class="idle-sway" style="animation-delay:2s; animation-duration:5.2s;">
+                      <ellipse cx="0" cy="-21" rx="13.5" ry="23" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:86deg; --droop-dir:1.1;">
+                    <g class="idle-sway" style="animation-delay:2.4s; animation-duration:4.4s;">
+                      <ellipse cx="0" cy="-19" rx="13" ry="21" fill="url(#leafGrad)"/>
+                    </g>
+                  </g>
+                  <g transform="translate(0,-30)">
                     <g class="flower" style="transform-origin:0px 0px;">
-                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(0)"/>
-                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(72)"/>
-                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(144)"/>
-                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(216)"/>
-                      <ellipse cx="0" cy="-10" rx="5.5" ry="9" fill="#FBF6F8" stroke="#DCB9C8" stroke-width="1" transform="rotate(288)"/>
-                      <circle cx="0" cy="0" r="4.5" fill="#E7A4BC"/>
+                      <ellipse cx="0" cy="-6" rx="3.5" ry="6" fill="#E9A9C2" transform="rotate(0)"/>
+                      <ellipse cx="0" cy="-6" rx="3.5" ry="6" fill="#E9A9C2" transform="rotate(72)"/>
+                      <ellipse cx="0" cy="-6" rx="3.5" ry="6" fill="#E9A9C2" transform="rotate(144)"/>
+                      <ellipse cx="0" cy="-6" rx="3.5" ry="6" fill="#E9A9C2" transform="rotate(216)"/>
+                      <ellipse cx="0" cy="-6" rx="3.5" ry="6" fill="#E9A9C2" transform="rotate(288)"/>
+                      <circle cx="0" cy="0" r="3" fill="#F6E7B8"/>
                     </g>
                   </g>
                 </g>
               </g>
-              <g transform="translate(104,235)">
-                <g class="leaf leaf-c" style="transform-origin:0px 0px;">
-                  <ellipse cx="-28" cy="0" rx="30" ry="13" fill="url(#leafGrad)" transform="rotate(12)"/>
-                </g>
-              </g>
-              <g transform="translate(138,148)">
-                <g class="leaf leaf-d" style="transform-origin:0px 0px;">
-                  <ellipse cx="28" cy="0" rx="28" ry="12" fill="url(#leafGrad)" transform="rotate(-12)"/>
-                  <g transform="translate(55,-12)">
-                    <g class="flower" style="transform-origin:0px 0px;">
-                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(0)"/>
-                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(72)"/>
-                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(144)"/>
-                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(216)"/>
-                      <ellipse cx="0" cy="-9" rx="5" ry="8" fill="#D5B9DE" transform="rotate(288)"/>
-                      <circle cx="0" cy="0" r="4" fill="#F6E7B8"/>
+
+              <!-- ===== fern: many thin fronds, sprawling, never flowers ===== -->
+              <g class="shape-group shape-fern">
+                <g transform="translate(120,250)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-88deg; --droop-dir:-1.3;">
+                    <g class="idle-sway" style="animation-delay:0s; animation-duration:4.4s;">
+                      <path d="M0,0 C-8,-22 4,-46 -4,-68 C-8,-80 2,-90 -2,-98" stroke="url(#leafGrad)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="-9" cy="-18" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(-35 -9 -18)"/>
+                      <ellipse class="frond-leaflet" cx="3" cy="-28" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(35 3 -28)"/>
+                      <ellipse class="frond-leaflet" cx="-8" cy="-42" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(-35 -8 -42)"/>
+                      <ellipse class="frond-leaflet" cx="1" cy="-54" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(35 1 -54)"/>
+                      <ellipse class="frond-leaflet" cx="-6" cy="-68" rx="6" ry="1.8" fill="url(#leafGrad)" transform="rotate(-35 -6 -68)"/>
+                      <ellipse class="frond-leaflet" cx="-2" cy="-84" rx="5" ry="1.6" fill="url(#leafGrad)" transform="rotate(10 -2 -84)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-58deg; --droop-dir:-1.25;">
+                    <g class="idle-sway" style="animation-delay:.5s; animation-duration:5s;">
+                      <path d="M0,0 C6,-24 -4,-48 4,-72 C8,-86 -2,-96 2,-104" stroke="url(#leafGrad)" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="8" cy="-20" rx="7.5" ry="2.3" fill="url(#leafGrad)" transform="rotate(35 8 -20)"/>
+                      <ellipse class="frond-leaflet" cx="-4" cy="-32" rx="7.5" ry="2.3" fill="url(#leafGrad)" transform="rotate(-35 -4 -32)"/>
+                      <ellipse class="frond-leaflet" cx="7" cy="-46" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(35 7 -46)"/>
+                      <ellipse class="frond-leaflet" cx="-3" cy="-60" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(-35 -3 -60)"/>
+                      <ellipse class="frond-leaflet" cx="6" cy="-74" rx="6" ry="2" fill="url(#leafGrad)" transform="rotate(35 6 -74)"/>
+                      <ellipse class="frond-leaflet" cx="2" cy="-90" rx="5" ry="1.8" fill="url(#leafGrad)" transform="rotate(-10 2 -90)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-27deg; --droop-dir:-1.15;">
+                    <g class="idle-sway" style="animation-delay:1s; animation-duration:4.6s;">
+                      <path d="M0,0 C-5,-26 3,-52 -3,-78 C-6,-92 3,-100 0,-110" stroke="url(#leafGrad)" stroke-width="3.6" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="-8" cy="-22" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(-32 -8 -22)"/>
+                      <ellipse class="frond-leaflet" cx="4" cy="-36" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(32 4 -36)"/>
+                      <ellipse class="frond-leaflet" cx="-7" cy="-52" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(-32 -7 -52)"/>
+                      <ellipse class="frond-leaflet" cx="3" cy="-68" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(32 3 -68)"/>
+                      <ellipse class="frond-leaflet" cx="-5" cy="-82" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(-32 -5 -82)"/>
+                      <ellipse class="frond-leaflet" cx="0" cy="-98" rx="5" ry="1.8" fill="url(#leafGrad)" transform="rotate(0 0 -98)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:0deg; --droop-dir:1.1;">
+                    <g class="idle-sway" style="animation-delay:1.5s; animation-duration:5.4s;">
+                      <path d="M0,0 C4,-28 -4,-56 3,-84 C6,-96 -3,-104 0,-114" stroke="url(#leafGrad)" stroke-width="3.6" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="7" cy="-24" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(30 7 -24)"/>
+                      <ellipse class="frond-leaflet" cx="-4" cy="-40" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(-30 -4 -40)"/>
+                      <ellipse class="frond-leaflet" cx="6" cy="-56" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(30 6 -56)"/>
+                      <ellipse class="frond-leaflet" cx="-3" cy="-72" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(-30 -3 -72)"/>
+                      <ellipse class="frond-leaflet" cx="5" cy="-86" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(30 5 -86)"/>
+                      <ellipse class="frond-leaflet" cx="0" cy="-102" rx="5" ry="1.8" fill="url(#leafGrad)" transform="rotate(0 0 -102)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:27deg; --droop-dir:1.15;">
+                    <g class="idle-sway" style="animation-delay:2s; animation-duration:4.6s;">
+                      <path d="M0,0 C5,-26 -3,-52 3,-78 C6,-92 -3,-100 0,-110" stroke="url(#leafGrad)" stroke-width="3.6" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="8" cy="-22" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(32 8 -22)"/>
+                      <ellipse class="frond-leaflet" cx="-4" cy="-36" rx="8" ry="2.4" fill="url(#leafGrad)" transform="rotate(-32 -4 -36)"/>
+                      <ellipse class="frond-leaflet" cx="7" cy="-52" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(32 7 -52)"/>
+                      <ellipse class="frond-leaflet" cx="-3" cy="-68" rx="7.5" ry="2.2" fill="url(#leafGrad)" transform="rotate(-32 -3 -68)"/>
+                      <ellipse class="frond-leaflet" cx="5" cy="-82" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(32 5 -82)"/>
+                      <ellipse class="frond-leaflet" cx="0" cy="-98" rx="5" ry="1.8" fill="url(#leafGrad)" transform="rotate(0 0 -98)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:58deg; --droop-dir:1.25;">
+                    <g class="idle-sway" style="animation-delay:2.5s; animation-duration:5s;">
+                      <path d="M0,0 C-6,-24 4,-48 -4,-72 C-8,-86 2,-96 -2,-104" stroke="url(#leafGrad)" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="-8" cy="-20" rx="7.5" ry="2.3" fill="url(#leafGrad)" transform="rotate(-35 -8 -20)"/>
+                      <ellipse class="frond-leaflet" cx="4" cy="-32" rx="7.5" ry="2.3" fill="url(#leafGrad)" transform="rotate(35 4 -32)"/>
+                      <ellipse class="frond-leaflet" cx="-7" cy="-46" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(-35 -7 -46)"/>
+                      <ellipse class="frond-leaflet" cx="3" cy="-60" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(35 3 -60)"/>
+                      <ellipse class="frond-leaflet" cx="-6" cy="-74" rx="6" ry="2" fill="url(#leafGrad)" transform="rotate(-35 -6 -74)"/>
+                      <ellipse class="frond-leaflet" cx="-2" cy="-90" rx="5" ry="1.8" fill="url(#leafGrad)" transform="rotate(10 -2 -90)"/>
+                    </g>
+                  </g>
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:88deg; --droop-dir:1.3;">
+                    <g class="idle-sway" style="animation-delay:3s; animation-duration:4.4s;">
+                      <path d="M0,0 C8,-22 -4,-46 4,-68 C8,-80 -2,-90 2,-98" stroke="url(#leafGrad)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+                      <ellipse class="frond-leaflet" cx="9" cy="-18" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(35 9 -18)"/>
+                      <ellipse class="frond-leaflet" cx="-3" cy="-28" rx="7" ry="2.2" fill="url(#leafGrad)" transform="rotate(-35 -3 -28)"/>
+                      <ellipse class="frond-leaflet" cx="8" cy="-42" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(35 8 -42)"/>
+                      <ellipse class="frond-leaflet" cx="-1" cy="-54" rx="6.5" ry="2" fill="url(#leafGrad)" transform="rotate(-35 -1 -54)"/>
+                      <ellipse class="frond-leaflet" cx="6" cy="-68" rx="6" ry="1.8" fill="url(#leafGrad)" transform="rotate(35 6 -68)"/>
+                      <ellipse class="frond-leaflet" cx="2" cy="-84" rx="5" ry="1.6" fill="url(#leafGrad)" transform="rotate(-10 2 -84)"/>
                     </g>
                   </g>
                 </g>
               </g>
 
-              <g transform="translate(120,88)">
-                <g class="flower" style="transform-origin:0px 0px;">
-                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(0)"/>
-                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(72)"/>
-                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(144)"/>
-                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(216)"/>
-                  <ellipse cx="0" cy="-15" rx="8" ry="13" fill="#E9A9C2" transform="rotate(288)"/>
-                  <circle cx="0" cy="0" r="7" fill="#F6E7B8"/>
+              <!-- ===== cactus: rigid vertical segments, spines, flowers only when blooming ===== -->
+              <g class="shape-group shape-cactus">
+                <g class="cactus-body" style="--droop-dir:.12;">
+                  <rect x="103" y="148" width="34" height="110" rx="17" fill="url(#leafGrad)"/>
+                  <rect x="72" y="172" width="19" height="52" rx="9.5" fill="url(#leafGrad)" transform="rotate(-18 91 224)"/>
+                  <rect x="149" y="188" width="18" height="46" rx="9" fill="url(#leafGrad)" transform="rotate(16 149 234)"/>
+                  <g fill="#FFFFFF" opacity="0.5">
+                    <circle cx="112" cy="168" r="1.4"/><circle cx="128" cy="176" r="1.4"/><circle cx="112" cy="192" r="1.4"/>
+                    <circle cx="128" cy="200" r="1.4"/><circle cx="112" cy="216" r="1.4"/><circle cx="128" cy="224" r="1.4"/>
+                    <circle cx="112" cy="240" r="1.4"/><circle cx="128" cy="248" r="1.4"/>
+                    <circle cx="82" cy="192" r="1.2"/><circle cx="82" cy="208" r="1.2"/>
+                    <circle cx="158" cy="204" r="1.2"/><circle cx="158" cy="218" r="1.2"/>
+                  </g>
+                  <g transform="translate(112,148)">
+                    <g class="flower" style="transform-origin:0px 0px;">
+                      <g class="idle-sway" style="animation-delay:0s; animation-duration:5s;">
+                        <ellipse cx="0" cy="-11" rx="5.5" ry="9" fill="#F6C445" transform="rotate(0)"/>
+                        <ellipse cx="0" cy="-11" rx="5.5" ry="9" fill="#F6C445" transform="rotate(72)"/>
+                        <ellipse cx="0" cy="-11" rx="5.5" ry="9" fill="#F6C445" transform="rotate(144)"/>
+                        <ellipse cx="0" cy="-11" rx="5.5" ry="9" fill="#F6C445" transform="rotate(216)"/>
+                        <ellipse cx="0" cy="-11" rx="5.5" ry="9" fill="#F6C445" transform="rotate(288)"/>
+                        <circle cx="0" cy="0" r="4.5" fill="#8A5A2B"/>
+                      </g>
+                    </g>
+                  </g>
+                  <g transform="translate(129,142)">
+                    <g class="flower" style="transform-origin:0px 0px;">
+                      <g class="idle-sway" style="animation-delay:.5s; animation-duration:4.6s;">
+                        <ellipse cx="0" cy="-8" rx="4" ry="7" fill="#F0A93B" transform="rotate(0)"/>
+                        <ellipse cx="0" cy="-8" rx="4" ry="7" fill="#F0A93B" transform="rotate(72)"/>
+                        <ellipse cx="0" cy="-8" rx="4" ry="7" fill="#F0A93B" transform="rotate(144)"/>
+                        <ellipse cx="0" cy="-8" rx="4" ry="7" fill="#F0A93B" transform="rotate(216)"/>
+                        <ellipse cx="0" cy="-8" rx="4" ry="7" fill="#F0A93B" transform="rotate(288)"/>
+                        <circle cx="0" cy="0" r="3.3" fill="#8A5A2B"/>
+                      </g>
+                    </g>
+                  </g>
                 </g>
               </g>
+
+              <!-- ===== ivy: hangs down from an elevated shelf pot instead of growing up ===== -->
+              <g class="shape-group shape-ivy">
+                <g class="pot-group-ivy">
+                  <ellipse cx="120" cy="153" rx="52" ry="5" fill="#000" opacity="0.06"/>
+                  <rect x="66" y="140" width="108" height="10" rx="4" fill="#8A6D52"/>
+                  <polygon points="96,104 144,104 137,140 103,140" fill="url(#potGrad)"/>
+                  <rect x="93" y="94" width="54" height="11" rx="5" fill="#A96B42"/>
+                  <ellipse id="rareAccentIvy" cx="120" cy="99.5" rx="26" ry="3.4" fill="none" stroke="#E4BE5C" stroke-width="2" opacity="0.85"/>
+                </g>
+                <g transform="translate(104,140)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-9deg; --droop-dir:.5;">
+                    <g class="idle-sway" style="animation-delay:0s; animation-duration:5.4s;">
+                      <path d="M0,0 C5,26 -5,52 3,78 C8,100 -3,122 0,140" stroke="url(#leafGrad)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+                      <ellipse class="vine-leaf" cx="7" cy="18" rx="7.5" ry="5" fill="url(#leafGrad)" transform="rotate(20 7 18)"/>
+                      <ellipse class="vine-leaf" cx="-6" cy="42" rx="7" ry="4.6" fill="url(#leafGrad)" transform="rotate(-20 -6 42)"/>
+                      <ellipse class="vine-leaf" cx="6" cy="66" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(20 6 66)"/>
+                      <ellipse class="vine-leaf" cx="-5" cy="92" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(-18 -5 92)"/>
+                      <ellipse class="vine-leaf" cx="4" cy="118" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(16 4 118)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(112,140)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:-3deg; --droop-dir:.3;">
+                    <g class="idle-sway" style="animation-delay:.7s; animation-duration:4.8s;">
+                      <path d="M0,0 C-4,30 4,58 -3,88 C-7,108 3,128 0,150" stroke="url(#leafGrad)" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+                      <ellipse class="vine-leaf" cx="-6" cy="20" rx="7" ry="4.6" fill="url(#leafGrad)" transform="rotate(-18 -6 20)"/>
+                      <ellipse class="vine-leaf" cx="5" cy="46" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(18 5 46)"/>
+                      <ellipse class="vine-leaf" cx="-5" cy="72" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(-16 -5 72)"/>
+                      <ellipse class="vine-leaf" cx="4" cy="100" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(16 4 100)"/>
+                      <ellipse class="vine-leaf" cx="-3" cy="130" rx="5" ry="3.3" fill="url(#leafGrad)" transform="rotate(-14 -3 130)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(120,140)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:0deg; --droop-dir:.6;">
+                    <g class="idle-sway" style="animation-delay:1.4s; animation-duration:5.6s;">
+                      <path d="M0,0 C6,24 -6,50 4,74 C9,96 -4,118 0,145" stroke="url(#leafGrad)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+                      <ellipse class="vine-leaf" cx="8" cy="16" rx="8" ry="5.2" fill="url(#leafGrad)" transform="rotate(20 8 16)"/>
+                      <ellipse class="vine-leaf" cx="-7" cy="40" rx="7.5" ry="4.9" fill="url(#leafGrad)" transform="rotate(-20 -7 40)"/>
+                      <ellipse class="vine-leaf" cx="7" cy="64" rx="7" ry="4.6" fill="url(#leafGrad)" transform="rotate(20 7 64)"/>
+                      <ellipse class="vine-leaf" cx="-6" cy="90" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(-18 -6 90)"/>
+                      <ellipse class="vine-leaf" cx="5" cy="116" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(18 5 116)"/>
+                      <ellipse class="vine-leaf" cx="0" cy="138" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(0 0 138)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(128,140)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:3deg; --droop-dir:.3;">
+                    <g class="idle-sway" style="animation-delay:2.1s; animation-duration:4.6s;">
+                      <path d="M0,0 C4,30 -4,58 3,88 C7,108 -3,128 0,150" stroke="url(#leafGrad)" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+                      <ellipse class="vine-leaf" cx="6" cy="20" rx="7" ry="4.6" fill="url(#leafGrad)" transform="rotate(18 6 20)"/>
+                      <ellipse class="vine-leaf" cx="-5" cy="46" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(-18 -5 46)"/>
+                      <ellipse class="vine-leaf" cx="5" cy="72" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(16 5 72)"/>
+                      <ellipse class="vine-leaf" cx="-4" cy="100" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(-16 -4 100)"/>
+                      <ellipse class="vine-leaf" cx="3" cy="130" rx="5" ry="3.3" fill="url(#leafGrad)" transform="rotate(14 3 130)"/>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(136,140)">
+                  <g class="leaf" style="transform-origin:0px 0px; --base-rotate:9deg; --droop-dir:.5;">
+                    <g class="idle-sway" style="animation-delay:2.8s; animation-duration:5.2s;">
+                      <path d="M0,0 C-5,26 5,52 -3,78 C-8,100 3,122 0,140" stroke="url(#leafGrad)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+                      <ellipse class="vine-leaf" cx="-7" cy="18" rx="7.5" ry="5" fill="url(#leafGrad)" transform="rotate(-20 -7 18)"/>
+                      <ellipse class="vine-leaf" cx="6" cy="42" rx="7" ry="4.6" fill="url(#leafGrad)" transform="rotate(20 6 42)"/>
+                      <ellipse class="vine-leaf" cx="-6" cy="66" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(-20 -6 66)"/>
+                      <ellipse class="vine-leaf" cx="5" cy="92" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(18 5 92)"/>
+                      <ellipse class="vine-leaf" cx="-4" cy="118" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(-16 -4 118)"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
             </g>
           </g>
 

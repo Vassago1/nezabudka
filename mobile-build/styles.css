@@ -190,6 +190,71 @@
   .state-wilt-severe .leaf-d{transform:rotate(62deg);}
   .state-wilt-severe .flower{opacity:0; transform:scale(.7);}
 
+  /* ---------- species shapes: each species has its own silhouette, not a
+     recolored copy of the same one. #plantStage carries a shape-<id> class
+     (set in applySpeciesTheme); only the matching shape group is shown. ---------- */
+  .shape-group{display:none;}
+  #plantStage.shape-default .shape-default,
+  #plantStage.shape-succulent .shape-succulent,
+  #plantStage.shape-fern .shape-fern,
+  #plantStage.shape-cactus .shape-cactus,
+  #plantStage.shape-ivy .shape-ivy{display:inline;}
+  /* ivy sits on its own elevated shelf+pot instead of the shared floor pot */
+  #plantStage.shape-ivy .pot-group,
+  #plantStage.shape-ivy .ground-shadow{display:none;}
+
+  /* Droop severity cascades from the health-state classes down through
+     --droop; each leaf/frond/vine/segment multiplies it by its own
+     --droop-dir (sign + magnitude) so one shared scale drives every shape. */
+  .state-bloom .plant-group{--droop:0deg;}
+  .state-normal .plant-group{--droop:6deg;}
+  .state-wilt .plant-group{--droop:26deg;}
+  .state-wilt-severe .plant-group{--droop:42deg;}
+
+  .leaf{
+    transition:transform 1.3s ease;
+    transform:rotate(calc(var(--base-rotate, 0deg) + (var(--droop, 0deg) * var(--droop-dir, 1))));
+  }
+  .cactus-body{
+    transition:transform 1.3s ease;
+    transform-origin:120px 258px;
+    transform:rotate(calc(var(--droop, 0deg) * var(--droop-dir, 0.12)));
+  }
+
+  /* small leaflets/leaves fade a little as the plant wilts, on top of the
+     shared color filter - reads as sparse, thinning foliage */
+  .state-wilt .frond-leaflet, .state-wilt .vine-leaf{opacity:.75;}
+  .state-wilt-severe .frond-leaflet, .state-wilt-severe .vine-leaf{opacity:.45;}
+  .frond-leaflet, .vine-leaf{transition:opacity 1.3s ease;}
+
+  /* ---------- idle sway: each leaf/frond/vine drifts on its own slow,
+     slightly-offset cycle (4-6s) - only while thriving. A wilting plant
+     holds still, which is itself part of "needs attention". ---------- */
+  .idle-sway{
+    transform-origin:0px 0px;
+    animation-name:leafSway;
+    animation-timing-function:ease-in-out;
+    animation-iteration-count:infinite;
+  }
+  @keyframes leafSway{
+    0%,100%{transform:rotate(-2.4deg);}
+    50%{transform:rotate(2.4deg);}
+  }
+  .state-wilt .idle-sway, .state-wilt-severe .idle-sway,
+  .state-wilt #plantSway, .state-wilt-severe #plantSway{
+    animation-play-state:paused;
+  }
+
+  /* ---------- improvement flash: a brief, calm glow + a few rising sparks
+     when the plant's health state gets better than it was a moment ago ---------- */
+  .improve-glow{animation:improveGlow 1.7s ease-out;}
+  @keyframes improveGlow{
+    0%{filter:drop-shadow(0 0 0 rgba(255,242,189,0));}
+    28%{filter:drop-shadow(0 0 16px rgba(255,242,189,0.85));}
+    100%{filter:drop-shadow(0 0 0 rgba(255,242,189,0));}
+  }
+  .float-spark{font-size:12px;}
+
   .pet-status{
     margin-top:14px;
     font-size:17px;
@@ -1154,8 +1219,8 @@
     font-style:italic;
     line-height:1.5;
   }
-  #rareAccent{display:none;}
-  #plantStage.rare-active #rareAccent{display:block;}
+  #rareAccent, #rareAccentIvy{display:none;}
+  #plantStage.rare-active #rareAccent, #plantStage.rare-active #rareAccentIvy{display:block;}
 
   /* ---------- collection screen ---------- */
   .collection-section{margin-bottom:26px;}

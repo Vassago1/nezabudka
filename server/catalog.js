@@ -7,9 +7,9 @@
 
 const SPECIES = [
   { id: "default", cost: 0, rare: false }, // starter plant, owned by every patient
-  { id: "sakura", cost: 60, rare: false },
-  { id: "sunflower", cost: 90, rare: false },
-  { id: "lavender", cost: 80, rare: false },
+  { id: "fern", cost: 55, rare: false },
+  { id: "cactus", cost: 70, rare: false },
+  { id: "ivy", cost: 65, rare: false },
   { id: "succulent", cost: 50, rare: false },
   { id: "rare_gold_30", cost: null, rare: true, streakThreshold: 30 },
   { id: "rare_gold_60", cost: null, rare: true, streakThreshold: 60 },

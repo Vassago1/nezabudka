@@ -19,21 +19,21 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   // ---------- collection: species, scenes, achievements (ids must match server/catalog.js) ----------
   const SPECIES_CATALOG = [
-    { id:"default", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false,
+    { id:"default", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false, shape:"default",
       palette:{ leafFrom:"#8FAE79", leafTo:"#557141", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#E9A9C2", petalAlt:"#D5B9DE", center:"#F6E7B8" } },
-    { id:"sakura", name:"Сакура", icon:"🌸", desc:"Нежно-розовые цветы", cost:60, rare:false,
-      palette:{ leafFrom:"#9CC08A", leafTo:"#5F8A4E", potFrom:"#E7B4C4", potTo:"#C98BA0", petal:"#F6C6D8", petalAlt:"#F3AFC8", center:"#FFF3E0" } },
-    { id:"sunflower", name:"Подсолнух", icon:"🌻", desc:"Тёплые жёлто-оранжевые лепестки", cost:90, rare:false,
-      palette:{ leafFrom:"#8FB35B", leafTo:"#4F7A2E", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#F6C445", petalAlt:"#F0A93B", center:"#8A5A2B" } },
-    { id:"lavender", name:"Лаванда", icon:"💜", desc:"Сине-фиолетовые соцветия", cost:80, rare:false,
-      palette:{ leafFrom:"#9FB3A0", leafTo:"#5E7864", potFrom:"#B49CC9", potTo:"#8D6FAE", petal:"#B69BDB", petalAlt:"#9A7DC4", center:"#EFE6F8" } },
-    { id:"succulent", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья", cost:50, rare:false,
+    { id:"fern", name:"Папоротник", icon:"🌿", desc:"Раскидистые резные ветки, никогда не цветёт", cost:55, rare:false, shape:"fern",
+      palette:{ leafFrom:"#7FAE6E", leafTo:"#3F6E38", potFrom:"#C9A277", potTo:"#A47C52" } },
+    { id:"cactus", name:"Кактус", icon:"🌵", desc:"Колючий, но цветёт ярче всех, когда всё хорошо", cost:70, rare:false, shape:"cactus",
+      palette:{ leafFrom:"#7FB06B", leafTo:"#4C7A3A", potFrom:"#C9A277", potTo:"#A47C52" } },
+    { id:"ivy", name:"Плющ", icon:"🍃", desc:"Свисающие вниз плети, горшок на подвесной полке", cost:65, rare:false, shape:"ivy",
+      palette:{ leafFrom:"#6FAE7A", leafTo:"#3D7A4C", potFrom:"#B49CC9", potTo:"#8D6FAE" } },
+    { id:"succulent", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья-подушечки", cost:50, rare:false, shape:"succulent",
       palette:{ leafFrom:"#7FB0A0", leafTo:"#3F7A66", potFrom:"#C9A277", potTo:"#A47C52", petal:"#9ED6C3", petalAlt:"#6FBFA6", center:"#EAF7F1" } },
-    { id:"rare_gold_30", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30,
+    { id:"rare_gold_30", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30, shape:"default",
       palette:{ leafFrom:"#B7A55A", leafTo:"#7C6B2E", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F3D98A", petalAlt:"#EBCB68", center:"#FFF7E0" } },
-    { id:"rare_gold_60", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60,
-      palette:{ leafFrom:"#A7C7D9", leafTo:"#5E8FA6", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#DCEFF7", petalAlt:"#BFE0EF", center:"#FFF7E0" } },
-    { id:"rare_gold_100", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100,
+    { id:"rare_gold_60", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60, shape:"fern",
+      palette:{ leafFrom:"#A7C7D9", leafTo:"#5E8FA6", potFrom:"#E7C877", potTo:"#B98F3E" } },
+    { id:"rare_gold_100", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
       palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } }
   ];
   const SCENE_CATALOG = [
@@ -159,6 +159,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   ];
 
   let lastCompletedId = null;
+  let lastHealthState = null; // for the "state got better" glow, see maybeShowImprovement()
   let data = null; // cached full state from the server
   let pollTimer = null;
 
@@ -861,21 +862,34 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
   }
 
+  const PLANT_SHAPES = ["default","succulent","fern","cactus","ivy"];
+
   function applySpeciesTheme(speciesId){
     const info = speciesInfo(speciesId);
     const p = info.palette;
+    const shape = info.shape || "default";
+
+    plantStage.classList.remove(...PLANT_SHAPES.map(s => "shape-" + s));
+    plantStage.classList.add("shape-" + shape);
+
     const leafStops = document.querySelectorAll("#leafGrad stop");
     if(leafStops[0]) leafStops[0].setAttribute("stop-color", p.leafFrom);
     if(leafStops[1]) leafStops[1].setAttribute("stop-color", p.leafTo);
     const potStops = document.querySelectorAll("#potGrad stop");
     if(potStops[0]) potStops[0].setAttribute("stop-color", p.potFrom);
     if(potStops[1]) potStops[1].setAttribute("stop-color", p.potTo);
-    document.querySelectorAll("#plantStage g.flower").forEach((g, i) => {
-      const color = (i % 2 === 0) ? p.petal : p.petalAlt;
-      g.querySelectorAll("ellipse").forEach(el => el.setAttribute("fill", color));
-      const circle = g.querySelector("circle");
-      if(circle) circle.setAttribute("fill", p.center);
-    });
+
+    // Only the active shape's own flowers exist to recolor - fern/ivy carry
+    // none at all (that's the point: some species just never flower).
+    const activeShapeEl = document.querySelector("#plantStage .shape-" + shape);
+    if(activeShapeEl && p.petal){
+      activeShapeEl.querySelectorAll("g.flower").forEach((g, i) => {
+        const color = (i % 2 === 0) ? p.petal : p.petalAlt;
+        g.querySelectorAll("ellipse").forEach(el => el.setAttribute("fill", color));
+        const circle = g.querySelector("circle");
+        if(circle) circle.setAttribute("fill", p.center);
+      });
+    }
     plantStage.classList.toggle("rare-active", !!info.rare);
   }
 
@@ -940,6 +954,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
     plantStage.classList.remove("state-bloom","state-normal","state-wilt","state-wilt-severe");
     plantStage.classList.add("state-"+state);
+    maybeShowImprovement(state);
 
     petStatus.textContent = info.label;
     petCaption.textContent = info.caption;
@@ -1021,6 +1036,29 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     });
     setTimeout(() => el.remove(), 950);
   }
+
+  // A brief, calm glow + a few rising sparks the moment the plant's health
+  // state improves (e.g. right after marking today's tasks done pushes it
+  // from "wilt" to "normal"). Never fires on the very first render of a
+  // session (lastHealthState is null then) or when the state stays the same
+  // or gets worse.
+  const HEALTH_STATE_ORDER = ["wilt-severe","wilt","normal","bloom"];
+  function maybeShowImprovement(newState){
+    const prev = lastHealthState;
+    lastHealthState = newState;
+    if(prev === null || prev === newState) return;
+    if(HEALTH_STATE_ORDER.indexOf(newState) <= HEALTH_STATE_ORDER.indexOf(prev)) return;
+
+    plantStage.classList.remove("improve-glow");
+    void plantStage.offsetWidth;
+    plantStage.classList.add("improve-glow");
+    setTimeout(() => plantStage.classList.remove("improve-glow"), 1700);
+
+    [-18, 0, 20].forEach((dx, i) => {
+      setTimeout(() => spawnFloatText(plantStage, "✨", "float-spark", dx), i * 160);
+    });
+  }
+
   function spawnFloatIcon(anchorEl){
     spawnFloatText(anchorEl, "🌿", "", 0);
   }
