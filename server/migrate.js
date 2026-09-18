@@ -22,7 +22,13 @@ async function migratePostgres() {
       created_at TEXT NOT NULL,
       recovery_code TEXT,
       pairing_code_generated_at TEXT,
-      mood_diary_shared INTEGER NOT NULL DEFAULT 0
+      mood_diary_shared INTEGER NOT NULL DEFAULT 0,
+      best_streak_ever INTEGER NOT NULL DEFAULT 0,
+      mood_diary_ever_shared INTEGER NOT NULL DEFAULT 0,
+      time_machine_used INTEGER NOT NULL DEFAULT 0,
+      active_species_id TEXT NOT NULL DEFAULT 'default',
+      active_scene_id TEXT NOT NULL DEFAULT 'windowsill',
+      last_seen_at TEXT
     )
   `);
 
@@ -135,6 +141,25 @@ async function migratePostgres() {
       summary TEXT NOT NULL,
       created_at TEXT NOT NULL,
       seen_at TEXT
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS patient_achievements (
+      patient_id TEXT NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      PRIMARY KEY (patient_id, achievement_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS patient_species (
+      patient_id TEXT NOT NULL,
+      species_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      acquired_at TEXT NOT NULL,
+      PRIMARY KEY (patient_id, species_id)
     )
   `);
 }
@@ -271,6 +296,25 @@ async function migrateSqlite() {
     )
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS patient_achievements (
+      patient_id TEXT NOT NULL,
+      achievement_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      PRIMARY KEY (patient_id, achievement_id)
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS patient_species (
+      patient_id TEXT NOT NULL,
+      species_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      acquired_at TEXT NOT NULL,
+      PRIMARY KEY (patient_id, species_id)
+    )
+  `);
+
   // node:sqlite has no "ADD COLUMN IF NOT EXISTS", so check existing
   // columns first. These cover databases created before these columns
   // existed; a fresh file already gets them from the CREATE TABLE above... except
@@ -290,6 +334,32 @@ async function migrateSqlite() {
     "mood_diary_shared",
     "mood_diary_shared INTEGER NOT NULL DEFAULT 0"
   );
+  await ensureSqliteColumn(
+    "patients",
+    "best_streak_ever",
+    "best_streak_ever INTEGER NOT NULL DEFAULT 0"
+  );
+  await ensureSqliteColumn(
+    "patients",
+    "mood_diary_ever_shared",
+    "mood_diary_ever_shared INTEGER NOT NULL DEFAULT 0"
+  );
+  await ensureSqliteColumn(
+    "patients",
+    "time_machine_used",
+    "time_machine_used INTEGER NOT NULL DEFAULT 0"
+  );
+  await ensureSqliteColumn(
+    "patients",
+    "active_species_id",
+    "active_species_id TEXT NOT NULL DEFAULT 'default'"
+  );
+  await ensureSqliteColumn(
+    "patients",
+    "active_scene_id",
+    "active_scene_id TEXT NOT NULL DEFAULT 'windowsill'"
+  );
+  await ensureSqliteColumn("patients", "last_seen_at", "last_seen_at TEXT");
 }
 
 async function migrate() {

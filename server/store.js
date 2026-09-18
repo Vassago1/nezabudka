@@ -3,10 +3,12 @@
 const bcrypt = require("bcryptjs");
 const { query } = require("./db");
 const calc = require("./calc");
+const catalog = require("./catalog");
 const { randomId, randomPairingCode, randomRecoveryCode, randomSessionToken } = require("./ids");
 
 const PAIRING_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const ATTENTION_THRESHOLD_PCT = 50;
+const STALE_CONTACT_MS = 24 * 60 * 60 * 1000; // 24h since the patient device last reached the server
 
 function nowIso() {
   return new Date().toISOString();
@@ -226,6 +228,14 @@ async function getPatientRow(patientId) {
   return ensurePatientMigratedFields(await getPatientRowRaw(patientId));
 }
 
+// Records that the patient's own device (not a doctor viewing their data)
+// successfully reached the server just now - the doctor dashboard uses this
+// to flag patients whose shown state may be out of date, separately from
+// whether they've actually completed their tasks.
+async function touchPatientLastSeen(patientId) {
+  await run("UPDATE patients SET last_seen_at = $1 WHERE id = $2", [nowIso(), patientId]);
+}
+
 function isPairingCodeExpired(patientRow) {
   if (!patientRow.pairing_code_generated_at) return false;
   const generated = new Date(patientRow.pairing_code_generated_at).getTime();
@@ -266,7 +276,124 @@ async function getLinkedDoctorForPatient(patientId) {
   return { id: doctor.id, name: doctor.name };
 }
 
+// ---------- collection: species, scenes, achievements ----------
+async function getOwnedSpeciesIds(patientId) {
+  const rows = await all("SELECT species_id FROM patient_species WHERE patient_id = $1", [patientId]);
+  const owned = rows.map((r) => r.species_id);
+  if (owned.indexOf("default") === -1) owned.push("default");
+  return owned;
+}
+
+async function getUnlockedAchievements(patientId) {
+  const rows = await all(
+    "SELECT achievement_id as \"id\", unlocked_at as \"unlockedAt\" FROM patient_achievements WHERE patient_id = $1",
+    [patientId]
+  );
+  return rows;
+}
+
+async function unlockAchievement(patientId, achievementId) {
+  const existing = await get(
+    "SELECT 1 as x FROM patient_achievements WHERE patient_id = $1 AND achievement_id = $2",
+    [patientId, achievementId]
+  );
+  if (existing) return false;
+  await run(
+    "INSERT INTO patient_achievements (patient_id, achievement_id, unlocked_at) VALUES ($1, $2, $3)",
+    [patientId, achievementId, nowIso()]
+  );
+  return true;
+}
+
+async function grantSpecies(patientId, speciesId, source) {
+  const existing = await get("SELECT 1 as x FROM patient_species WHERE patient_id = $1 AND species_id = $2", [
+    patientId,
+    speciesId,
+  ]);
+  if (existing) return false;
+  await run("INSERT INTO patient_species (patient_id, species_id, source, acquired_at) VALUES ($1, $2, $3, $4)", [
+    patientId,
+    speciesId,
+    source,
+    nowIso(),
+  ]);
+  return true;
+}
+
+// Recomputes the patient's best-ever streak, grants any rare species their
+// streak just crossed, and unlocks any achievement whose condition is now
+// met. Side-effect only - called from getFullPatientState so every sync
+// payload is self-healing regardless of which action caused the change.
+async function evaluateProgress(patientId) {
+  const patientRow = await getPatientRowRaw(patientId);
+  if (!patientRow) return;
+
+  const obligations = await listObligationObjects(patientId);
+  const today = patientVirtualToday(patientRow);
+  const currentStreak = calc.computeStreak(obligations, today);
+  const bestStreak = Math.max(patientRow.best_streak_ever || 0, currentStreak);
+  if (bestStreak !== patientRow.best_streak_ever) {
+    await run("UPDATE patients SET best_streak_ever = $1 WHERE id = $2", [bestStreak, patientId]);
+  }
+
+  for (const species of catalog.RARE_SPECIES) {
+    if (bestStreak >= species.streakThreshold) {
+      await grantSpecies(patientId, species.id, "streak_reward");
+    }
+  }
+
+  for (const achievement of catalog.STREAK_ACHIEVEMENTS) {
+    if (bestStreak >= achievement.streakAtLeast) {
+      await unlockAchievement(patientId, achievement.id);
+    }
+  }
+
+  const courseCompleted = obligations.some((o) => o.courseCompletedNotified);
+  if (courseCompleted) await unlockAchievement(patientId, "first_course");
+
+  const doctor = await getLinkedDoctorForPatient(patientId);
+  if (doctor) await unlockAchievement(patientId, "doctor_connected");
+
+  if (patientRow.mood_diary_ever_shared) await unlockAchievement(patientId, "mood_diary_shared");
+
+  if (patientRow.time_machine_used) await unlockAchievement(patientId, "time_traveler");
+
+  const owned = await getOwnedSpeciesIds(patientId);
+  const allPurchasableOwned = catalog.PURCHASABLE_SPECIES_IDS.every((id) => owned.indexOf(id) !== -1);
+  if (allPurchasableOwned) await unlockAchievement(patientId, "species_collector");
+}
+
+async function buyPlantSpecies(patientId, speciesId) {
+  const species = catalog.findSpecies(speciesId);
+  if (!species || species.rare || species.id === "default") return { error: "not_purchasable" };
+  const patient = await getPatientRow(patientId);
+  if (!patient) return null;
+  const owned = await getOwnedSpeciesIds(patientId);
+  if (owned.indexOf(speciesId) !== -1) return { error: "already_owned" };
+  if (patient.points < species.cost) return { error: "not_enough_points" };
+  await run("UPDATE patients SET points = points - $1 WHERE id = $2", [species.cost, patientId]);
+  await grantSpecies(patientId, speciesId, "purchased");
+  return { ok: true };
+}
+
+async function selectActiveSpecies(patientId, speciesId) {
+  const species = catalog.findSpecies(speciesId);
+  if (!species) return { error: "not_found" };
+  const owned = await getOwnedSpeciesIds(patientId);
+  if (owned.indexOf(speciesId) === -1) return { error: "not_owned" };
+  await run("UPDATE patients SET active_species_id = $1 WHERE id = $2", [speciesId, patientId]);
+  return { ok: true };
+}
+
+async function selectActiveScene(patientId, sceneId) {
+  if (catalog.SCENE_IDS.indexOf(sceneId) === -1) return { error: "not_found" };
+  await run("UPDATE patients SET active_scene_id = $1 WHERE id = $2", [sceneId, patientId]);
+  return { ok: true };
+}
+
 async function getFullPatientState(patientId) {
+  await evaluateProgress(patientId);
+
   const patientRow = await getPatientRow(patientId);
   if (!patientRow) return null;
 
@@ -298,6 +425,9 @@ async function getFullPatientState(patientId) {
     [patientId]
   );
 
+  const ownedSpeciesIds = await getOwnedSpeciesIds(patientId);
+  const achievements = await getUnlockedAchievements(patientId);
+
   return {
     id: patientRow.id,
     companionName: patientRow.companion_name,
@@ -309,6 +439,11 @@ async function getFullPatientState(patientId) {
     theme: patientRow.theme,
     soundEnabled: !!patientRow.sound_enabled,
     moodDiaryShared: !!patientRow.mood_diary_shared,
+    bestStreakEver: patientRow.best_streak_ever,
+    activeSpeciesId: patientRow.active_species_id,
+    activeSceneId: patientRow.active_scene_id,
+    ownedSpeciesIds,
+    achievements,
     tasks: obligations,
     journal,
     rewards,
@@ -332,6 +467,9 @@ async function updatePatientSettings(patientId, { companionName, theme, soundEna
     "UPDATE patients SET companion_name = $1, theme = $2, sound_enabled = $3, mood_diary_shared = $4 WHERE id = $5",
     [nextName, nextTheme, nextSound, nextMoodShared, patientId]
   );
+  if (moodDiaryShared === true && !patient.mood_diary_ever_shared) {
+    await run("UPDATE patients SET mood_diary_ever_shared = 1 WHERE id = $1", [patientId]);
+  }
 
   if (typeof moodDiaryShared === "boolean" && !!patient.mood_diary_shared !== moodDiaryShared) {
     const doctor = await getLinkedDoctorForPatient(patientId);
@@ -364,6 +502,9 @@ async function setVirtualOffset(patientId, delta) {
   if (!patient) return null;
   const next = delta === 0 ? 0 : (patient.virtual_offset || 0) + delta;
   await run("UPDATE patients SET virtual_offset = $1 WHERE id = $2", [next, patientId]);
+  if (delta !== 0 && !patient.time_machine_used) {
+    await run("UPDATE patients SET time_machine_used = 1 WHERE id = $1", [patientId]);
+  }
   return next;
 }
 
@@ -733,6 +874,8 @@ async function getDoctorPatientsSummary(doctorId) {
       const pct = calc.computeHealthPercent(obligations, today);
       const state = calc.healthState(pct);
       const week = calc.weeklyStats(obligations, today);
+      const lastSeenAt = patient.last_seen_at || null;
+      const stale = !lastSeenAt || Date.now() - new Date(lastSeenAt).getTime() > STALE_CONTACT_MS;
       return {
         id: patient.id,
         companionName: patient.companion_name,
@@ -741,6 +884,8 @@ async function getDoctorPatientsSummary(doctorId) {
         weekDone: week.done,
         needsAttention: pct < ATTENTION_THRESHOLD_PCT,
         recentPct: pct,
+        lastSeenAt,
+        stale,
       };
     })
   );
@@ -844,6 +989,8 @@ async function deletePatient(patientId) {
   await run("DELETE FROM rewards WHERE patient_id = $1", [patientId]);
   await run("DELETE FROM schedule_notices WHERE patient_id = $1", [patientId]);
   await run("DELETE FROM doctor_notices WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM patient_achievements WHERE patient_id = $1", [patientId]);
+  await run("DELETE FROM patient_species WHERE patient_id = $1", [patientId]);
   await run("DELETE FROM patients WHERE id = $1", [patientId]);
 
   return true;
@@ -853,6 +1000,7 @@ module.exports = {
   patientVirtualToday,
   createPatient,
   getPatientRow,
+  touchPatientLastSeen,
   getPatientByRecoveryCode,
   regeneratePairingCode,
   getFullPatientState,
@@ -884,4 +1032,7 @@ module.exports = {
   listDoctorNotices,
   markDoctorNoticesSeen,
   deletePatient,
+  buyPlantSpecies,
+  selectActiveSpecies,
+  selectActiveScene,
 };

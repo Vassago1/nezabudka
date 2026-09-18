@@ -16,6 +16,10 @@ const requirePatient = h(async (req, res, next) => {
   const patient = await store.getPatientRow(req.params.id);
   if (!patient) return res.status(404).json({ error: "patient_not_found" });
   req.patientRow = patient;
+  // Every authenticated call from the patient's own device is evidence it
+  // reached the server just now - the doctor dashboard uses this timestamp
+  // to flag stale-looking data, independent of task completion.
+  await store.touchPatientLastSeen(req.params.id);
   next();
 });
 
@@ -123,6 +127,38 @@ router.post(
   requirePatient,
   h(async (req, res) => {
     await store.markNoticesSeen(req.params.id);
+    res.json(await store.getFullPatientState(req.params.id));
+  })
+);
+
+// ---------- collection: species & scenes ----------
+router.post(
+  "/:id/collection/species/:speciesId/buy",
+  requirePatient,
+  h(async (req, res) => {
+    const result = await store.buyPlantSpecies(req.params.id, req.params.speciesId);
+    if (!result) return res.status(404).json({ error: "patient_not_found" });
+    if (result.error) return res.status(400).json(result);
+    res.json(await store.getFullPatientState(req.params.id));
+  })
+);
+
+router.post(
+  "/:id/collection/species/:speciesId/select",
+  requirePatient,
+  h(async (req, res) => {
+    const result = await store.selectActiveSpecies(req.params.id, req.params.speciesId);
+    if (result.error) return res.status(400).json(result);
+    res.json(await store.getFullPatientState(req.params.id));
+  })
+);
+
+router.post(
+  "/:id/collection/scene/:sceneId/select",
+  requirePatient,
+  h(async (req, res) => {
+    const result = await store.selectActiveScene(req.params.id, req.params.sceneId);
+    if (result.error) return res.status(400).json(result);
     res.json(await store.getFullPatientState(req.params.id));
   })
 );

@@ -335,6 +335,24 @@
     color:var(--text-muted);
   }
 
+  .stale-mark{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    color:var(--text-muted);
+    margin-left:8px;
+    font-weight:500;
+  }
+  .stale-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--text-muted);
+    flex-shrink:0;
+    display:inline-block;
+  }
+
   .banner{
     display:flex;
     align-items:center;
@@ -759,6 +777,13 @@
           mark.className = "attention-mark";
           mark.innerHTML = "<span class=\"attention-dot\"></span>Стоит обратить внимание";
           name.appendChild(mark);
+        }
+        if(p.stale){
+          const staleMark = document.createElement("span");
+          staleMark.className = "stale-mark";
+          staleMark.title = "Устройство пациента давно не выходило на связь с сервером - показанные данные могут отставать от реальных.";
+          staleMark.innerHTML = "<span class=\"stale-dot\"></span>Данные могут быть неактуальны";
+          name.appendChild(staleMark);
         }
         const sub = document.createElement("div");
         sub.className = "task-sub";

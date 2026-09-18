@@ -17,7 +17,127 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     "wilt-severe": { icon:"🥀", label:"Нуждается в заботе", caption:"Несколько дней без ухода — растение это переживёт." }
   };
 
-  const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  // ---------- collection: species, scenes, achievements (ids must match server/catalog.js) ----------
+  const SPECIES_CATALOG = [
+    { id:"default", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false,
+      palette:{ leafFrom:"#8FAE79", leafTo:"#557141", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#E9A9C2", petalAlt:"#D5B9DE", center:"#F6E7B8" } },
+    { id:"sakura", name:"Сакура", icon:"🌸", desc:"Нежно-розовые цветы", cost:60, rare:false,
+      palette:{ leafFrom:"#9CC08A", leafTo:"#5F8A4E", potFrom:"#E7B4C4", potTo:"#C98BA0", petal:"#F6C6D8", petalAlt:"#F3AFC8", center:"#FFF3E0" } },
+    { id:"sunflower", name:"Подсолнух", icon:"🌻", desc:"Тёплые жёлто-оранжевые лепестки", cost:90, rare:false,
+      palette:{ leafFrom:"#8FB35B", leafTo:"#4F7A2E", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#F6C445", petalAlt:"#F0A93B", center:"#8A5A2B" } },
+    { id:"lavender", name:"Лаванда", icon:"💜", desc:"Сине-фиолетовые соцветия", cost:80, rare:false,
+      palette:{ leafFrom:"#9FB3A0", leafTo:"#5E7864", potFrom:"#B49CC9", potTo:"#8D6FAE", petal:"#B69BDB", petalAlt:"#9A7DC4", center:"#EFE6F8" } },
+    { id:"succulent", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья", cost:50, rare:false,
+      palette:{ leafFrom:"#7FB0A0", leafTo:"#3F7A66", potFrom:"#C9A277", potTo:"#A47C52", petal:"#9ED6C3", petalAlt:"#6FBFA6", center:"#EAF7F1" } },
+    { id:"rare_gold_30", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30,
+      palette:{ leafFrom:"#B7A55A", leafTo:"#7C6B2E", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F3D98A", petalAlt:"#EBCB68", center:"#FFF7E0" } },
+    { id:"rare_gold_60", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60,
+      palette:{ leafFrom:"#A7C7D9", leafTo:"#5E8FA6", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#DCEFF7", petalAlt:"#BFE0EF", center:"#FFF7E0" } },
+    { id:"rare_gold_100", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100,
+      palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } }
+  ];
+  const SCENE_CATALOG = [
+    { id:"windowsill", name:"Подоконник", icon:"🪟", desc:"Спокойный дневной свет — вид по умолчанию" },
+    { id:"greenhouse", name:"Теплица", icon:"🌿", desc:"Мягкий зелёный свет сквозь стекло" },
+    { id:"balcony", name:"Балкон на закате", icon:"🌇", desc:"Тёплые вечерние краски" }
+  ];
+  const ACHIEVEMENTS_CATALOG = [
+    { id:"first_week", icon:"📅", title:"Первая неделя", desc:"Серия из 7 дней подряд без пропусков" },
+    { id:"streak_3", icon:"🔥", title:"Разгон", desc:"Серия 3 дня подряд" },
+    { id:"streak_7", icon:"🔥", title:"Неделя подряд", desc:"Серия 7 дней подряд" },
+    { id:"streak_14", icon:"🔥", title:"Две недели", desc:"Серия 14 дней подряд" },
+    { id:"streak_30", icon:"🏆", title:"Месяц заботы", desc:"Серия 30 дней подряд" },
+    { id:"first_course", icon:"💊", title:"Курс пройден", desc:"Полностью завершён первый курс" },
+    { id:"doctor_connected", icon:"🩺", title:"На связи с врачом", desc:"Подключён врач" },
+    { id:"mood_diary_shared", icon:"📔", title:"Открытость", desc:"Включён показ дневника настроения врачу" },
+    { id:"species_collector", icon:"🌺", title:"Коллекционер", desc:"Испробованы все виды растений в коллекции" },
+    { id:"time_traveler", icon:"⏳", title:"Исследователь времени", desc:"Машина времени опробована в демо-режиме" }
+  ];
+
+  // Supportive line under the pet caption: calm, adult tone, no forced cheer
+  // or guilt. Picked once per (time-of-day × health) combination so it
+  // doesn't flicker on every 20s poll, and avoids repeating the same phrase
+  // twice in a row within a combination.
+  const SUPPORTIVE_PHRASES = {
+    morning: {
+      good: [
+        "Утро начинается спокойно — дела идут своим чередом.",
+        "Хорошее утро для того, чтобы двигаться в своём темпе.",
+        "Всё по плану — самое время не торопиться.",
+        "Утро тихое, и это хороший знак.",
+        "День только начался, а порядок уже есть.",
+        "Ровное утро — этого достаточно."
+      ],
+      mid: [
+        "Утро как утро — не обязательно быть безупречным.",
+        "Есть немного дел на сегодня, но время ещё есть.",
+        "Не всё сделано, и это нормально для начала дня.",
+        "Можно начать с малого — спешить некуда.",
+        "Утро продолжается, дела подождут своей очереди.",
+        "Небольшой пробел — не повод для тревоги."
+      ],
+      low: [
+        "Тяжёлое утро случается — это не оценка вас как человека.",
+        "Можно начать с одного маленького шага, без спешки.",
+        "Не всё получается сразу, и это ожидаемо.",
+        "Утро трудное — дайте себе немного времени.",
+        "Один пропуск не перечёркивает всё остальное.",
+        "Сегодня можно идти медленнее обычного."
+      ]
+    },
+    day: {
+      good: [
+        "День идёт ровно — приятно это видеть.",
+        "Хороший темп, можно продолжать так же.",
+        "Дела не копятся — самое время для паузы.",
+        "Середина дня спокойная, всё под контролем.",
+        "Всё идёт своим чередом, без спешки.",
+        "Ровный день — это тоже маленькая победа."
+      ],
+      mid: [
+        "День в середине, кое-что ещё впереди.",
+        "Есть время наверстать то, что осталось.",
+        "Не всё сделано — и это обычный день.",
+        "Можно вернуться к делам, когда будет удобно.",
+        "Середина дня — хорошее время сверить план.",
+        "Часть дел позади, часть подождёт."
+      ],
+      low: [
+        "День выдался непростым — это тоже бывает.",
+        "Не обязательно успевать всё сразу, можно постепенно.",
+        "Сложный день не отменяет ваших усилий раньше.",
+        "Можно сделать паузу и вернуться к делам позже.",
+        "Не всё получилось — это не повод для строгости к себе.",
+        "День тяжёлый, и это просто факт, а не приговор."
+      ]
+    },
+    evening: {
+      good: [
+        "Вечер спокойный — день прошёл хорошо.",
+        "Дела сделаны, можно отдохнуть без спешки.",
+        "Ровный день подходит к концу.",
+        "Хорошее завершение дня — заслуженный отдых.",
+        "Всё сделано вовремя — можно выдохнуть.",
+        "Вечер тихий, и это приятно."
+      ],
+      mid: [
+        "День почти завершён, кое-что осталось на потом.",
+        "Не всё успели — обычное дело к вечеру.",
+        "Вечер — подходящее время подвести итог без строгости.",
+        "Часть дел позади, остальное подождёт до завтра.",
+        "Спокойный вечер, даже если день был неполным.",
+        "Не каждый день бывает идеальным, и сегодня тоже."
+      ],
+      low: [
+        "Тяжёлый день заканчивается — можно просто отдохнуть.",
+        "Не всё получилось сегодня, и завтра будет другой день.",
+        "Вечер — время остановиться, а не подводить строгие итоги.",
+        "Один трудный день не определяет всё остальное.",
+        "Можно лечь спать, не досчитавшись — это нормально.",
+        "Сегодня было сложно, и этого достаточно, чтобы дать себе отдых."
+      ]
+    }
+  };
 
   const MOODS = [
     { id:"calm", icon:"😌", label:"Спокойно" },
@@ -80,7 +200,133 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   }
 
   // ---------- API layer ----------
-  async function apiCall(method, path, body){
+  // Render's free tier spins the server down after ~15 minutes idle; the
+  // first request afterwards can take up to ~50s to come back instead of
+  // failing outright. A slow-but-alive response and a genuinely broken
+  // connection need different handling: the former just needs a "please
+  // wait" indicator (handled by begin/endRequestTracking below), the latter
+  // needs retries and, eventually, a fallback to the last data we saw.
+  const CACHE_KEY = "carePatientCache_v1";
+  const CACHE_META_KEY = "carePatientCacheMeta_v1";
+  const PENDING_COMPLETIONS_KEY = "carePendingCompletions_v1";
+  const WAKE_UP_AFTER_MS = 5000;
+  const RETRY_DELAYS_MS = [3000, 6000, 10000];
+  const RETRY_BUDGET_MS = 60000;
+
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  function saveCache(patientData){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify(patientData));
+      localStorage.setItem(CACHE_META_KEY, JSON.stringify({ patientId: patientData.id, savedAt: Date.now() }));
+    }catch(e){}
+  }
+  function loadCache(patientId){
+    try{
+      const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "null");
+      if(!meta || meta.patientId !== patientId) return null;
+      return JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    }catch(e){ return null; }
+  }
+
+  function loadPendingCompletions(){
+    try{ return JSON.parse(localStorage.getItem(PENDING_COMPLETIONS_KEY) || "[]"); }catch(e){ return []; }
+  }
+  function savePendingCompletions(list){
+    try{ localStorage.setItem(PENDING_COMPLETIONS_KEY, JSON.stringify(list)); }catch(e){}
+  }
+  function addPendingCompletion(taskId, dateStr){
+    const list = loadPendingCompletions();
+    if(!list.some(p => p.taskId === taskId && p.date === dateStr)) list.push({ taskId, date: dateStr });
+    savePendingCompletions(list);
+  }
+  function removePendingCompletion(taskId){
+    savePendingCompletions(loadPendingCompletions().filter(p => p.taskId !== taskId));
+  }
+
+  const wakingBannerEl = document.getElementById("wakingBanner");
+  const offlineBannerEl = document.getElementById("offlineBanner");
+  const bootOverlayEl = document.getElementById("bootOverlay");
+  const bootSpinnerEl = document.getElementById("bootSpinner");
+  const bootTextEl = document.getElementById("bootText");
+  const bootRetryBtnEl = document.getElementById("bootRetryBtn");
+
+  let offlineMode = false;
+  let inFlightCount = 0;
+  let wakingTimer = null;
+
+  function showWakingIndicator(){
+    if(offlineMode) return;
+    if(!data){
+      bootSpinnerEl.classList.remove("hidden");
+      bootTextEl.textContent = "Просыпаемся, секунду…";
+      bootRetryBtnEl.classList.add("hidden");
+      bootOverlayEl.classList.remove("hidden");
+    }else{
+      wakingBannerEl.classList.remove("hidden");
+    }
+  }
+  function hideWakingIndicator(){
+    wakingBannerEl.classList.add("hidden");
+    if(!offlineMode) bootOverlayEl.classList.add("hidden");
+  }
+  function beginRequestTracking(){
+    inFlightCount++;
+    if(!wakingTimer){
+      wakingTimer = setTimeout(() => {
+        wakingTimer = null;
+        if(inFlightCount > 0) showWakingIndicator();
+      }, WAKE_UP_AFTER_MS);
+    }
+  }
+  function endRequestTracking(){
+    inFlightCount = Math.max(0, inFlightCount - 1);
+    if(inFlightCount === 0){
+      if(wakingTimer){ clearTimeout(wakingTimer); wakingTimer = null; }
+      hideWakingIndicator();
+    }
+  }
+
+  function enterOfflineMode(){
+    if(offlineMode) return;
+    offlineMode = true;
+    bootOverlayEl.classList.add("hidden");
+    wakingBannerEl.classList.add("hidden");
+    offlineBannerEl.classList.remove("hidden");
+  }
+  let flushingPending = false;
+  function exitOfflineMode(){
+    if(!offlineMode) return;
+    offlineMode = false;
+    offlineBannerEl.classList.add("hidden");
+    flushPendingCompletions();
+  }
+
+  // Retried "Done" taps recorded while offline (see markDone) - replayed
+  // against the server as soon as a request succeeds again.
+  async function flushPendingCompletions(){
+    if(flushingPending || !data) return;
+    const pending = loadPendingCompletions();
+    if(pending.length === 0) return;
+    flushingPending = true;
+    try{
+      for(const p of pending.slice()){
+        try{
+          await apiCall("POST", "/api/patients/" + data.id + "/obligations/" + p.taskId + "/complete");
+          removePendingCompletion(p.taskId);
+        }catch(e){
+          if(e.offline){ enterOfflineMode(); break; }
+          removePendingCompletion(p.taskId); // server rejected it outright - nothing more to retry
+        }
+      }
+      await refreshData();
+      renderAll();
+    }finally{
+      flushingPending = false;
+    }
+  }
+
+  async function rawFetch(method, path, body){
     const opts = { method };
     if(body !== undefined){
       opts.headers = { "Content-Type": "application/json" };
@@ -98,6 +344,50 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return json;
   }
 
+  // Retries network-level failures (server unreachable, no connectivity) with
+  // a growing delay for up to a minute before giving up. A cold Render
+  // instance doesn't reject - it just answers slowly - so that case is
+  // handled separately by the waking-up indicator above, not by retrying.
+  // Once we know we're offline, calls fail fast instead of each blocking for
+  // up to a minute; a later successful call (background poll or a fresh
+  // action) is what notices the connection came back.
+  async function apiCall(method, path, body, callOpts){
+    const allowRetry = (!callOpts || callOpts.retry !== false) && !offlineMode;
+    beginRequestTracking();
+    const startedAt = Date.now();
+    let attempt = 0;
+    try{
+      while(true){
+        try{
+          const result = await rawFetch(method, path, body);
+          exitOfflineMode();
+          return result;
+        }catch(e){
+          if(e.status !== undefined) throw e; // real application error - never retried
+          if(!allowRetry){ e.offline = true; throw e; }
+          const delay = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
+          if(Date.now() - startedAt + delay > RETRY_BUDGET_MS){
+            e.offline = true;
+            throw e;
+          }
+          await sleep(delay);
+          attempt++;
+        }
+      }
+    }finally{
+      endRequestTracking();
+    }
+  }
+
+  // A connectivity failure that wasn't specifically handled by its call site
+  // still shouldn't fail silently - surface it once as a calm toast instead.
+  window.addEventListener("unhandledrejection", (event) => {
+    if(event.reason && event.reason.offline){
+      event.preventDefault();
+      showToast("Нет связи с сервером — изменение не сохранено");
+    }
+  });
+
   function getPatientId(){ return localStorage.getItem(PATIENT_ID_KEY); }
   function setPatientId(id){ localStorage.setItem(PATIENT_ID_KEY, id); }
 
@@ -110,12 +400,23 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(existingId){
       try{
         data = await apiCall("GET", "/api/patients/" + existingId);
+        saveCache(data);
         return true;
       }catch(e){
+        if(e.offline){
+          const cached = loadCache(existingId);
+          if(cached){
+            data = cached;
+            enterOfflineMode();
+            return true;
+          }
+          throw e; // no cached state to fall back to - let the caller show a real error
+        }
         // stale/unknown id (e.g. server data reset) -> create a fresh patient below
       }
       data = await apiCall("POST", "/api/patients");
       setPatientId(data.id);
+      saveCache(data);
       return true;
     }
     return false;
@@ -124,15 +425,35 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   async function createNewPatient(){
     data = await apiCall("POST", "/api/patients");
     setPatientId(data.id);
+    saveCache(data);
   }
 
   async function recoverPatientByCode(code){
     data = await apiCall("POST", "/api/patients/recover", { recoveryCode: code });
     setPatientId(data.id);
+    saveCache(data);
   }
 
   async function refreshData(){
-    data = await apiCall("GET", "/api/patients/" + data.id);
+    try{
+      data = await apiCall("GET", "/api/patients/" + data.id);
+      saveCache(data);
+    }catch(e){
+      if(e.offline){ enterOfflineMode(); return; }
+      throw e;
+    }
+  }
+
+  // Used by the background poll: a single attempt, no 60s retry loop, so a
+  // sleeping server doesn't pile up overlapping retries between ticks.
+  async function refreshDataQuiet(){
+    try{
+      data = await apiCall("GET", "/api/patients/" + data.id, undefined, { retry: false });
+      saveCache(data);
+    }catch(e){
+      if(e.offline) enterOfflineMode();
+      // any other transient error - try again on the next tick, as before
+    }
   }
 
   function getData(){ return data; }
@@ -189,10 +510,18 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const notificationsAvailable = !!LocalNotifications;
   let notificationPermissionGranted = false;
 
+  // Resolved at the end of finishBoot(), once `data` (the patient's full
+  // state) is loaded. A notification action can fire before that - e.g. the
+  // OS cold-starts the app just to deliver the tap - so the "done" handler
+  // awaits this before touching `data`.
+  let resolveAppReady;
+  const appReadyPromise = new Promise((res) => { resolveAppReady = res; });
+
   // Deterministic 32-bit-safe id derived from the task's string id, so the
   // same task always maps to the same notification id(s) without needing a
   // separate counter to persist. Slot 0-6 = a specific weekday (WEEKDAY_KEYS
-  // index), slot 9 = the single/daily notification for non-weekday tasks.
+  // index), slot 8 = a one-off snooze reminder, slot 9 = the single/daily
+  // notification for non-weekday tasks.
   function notifBaseId(taskId){
     let h = 5381;
     for(let i = 0; i < taskId.length; i++){
@@ -203,7 +532,8 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   function notifSlotId(taskId, slot){
     return notifBaseId(taskId) * 10 + slot;
   }
-  const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 9];
+  const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 8, 9];
+  const TASK_REMINDER_ACTION_TYPE = "TASK_REMINDER";
 
   // What should currently be scheduled for this task, if anything. Paused and
   // already-finished courses don't get reminders - there's nothing useful to
@@ -256,7 +586,13 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(plan.length === 0) return;
     const body = "Незабудка напоминает: " + task.name;
     const notifications = plan.map(p => {
-      const base = { id: notifSlotId(task.id, p.slot), title: "Незабудка", body };
+      const base = {
+        id: notifSlotId(task.id, p.slot),
+        title: "Незабудка",
+        body,
+        actionTypeId: TASK_REMINDER_ACTION_TYPE,
+        extra: { taskId: task.id }
+      };
       if(p.at) return { ...base, schedule: { at: p.at, allowWhileIdle: true } };
       if(p.weekday) return { ...base, schedule: { on: { weekday: p.weekday, hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
       return { ...base, schedule: { on: { hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
@@ -264,6 +600,72 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     try{
       await LocalNotifications.schedule({ notifications });
     }catch(e){}
+  }
+
+  // Registers the "Done" / "Snooze 10 min" notification buttons and the
+  // listener that handles taps on them.
+  //
+  // Reliability choice: both actions need the app's own JS to run in order
+  // to do anything (mark a task done against the server, or reschedule a
+  // reminder). Capacitor's LocalNotifications only delivers action taps to
+  // that JS by bringing the app's WebView up - there's no supported way on
+  // Android to run this fully in the background without writing a native
+  // BroadcastReceiver + WorkManager pair outside Capacitor, which is out of
+  // scope here. So rather than pretend this is silent, both actions openly
+  // (briefly) bring the app forward and finish the job there - "Done"
+  // completes the task and lands on the pet screen with a confirmation
+  // toast, "Snooze" reschedules the reminder - instead of failing silently.
+  async function registerNotificationHandlers(){
+    if(!notificationsAvailable) return;
+    try{
+      await LocalNotifications.registerActionTypes({
+        types: [{
+          id: TASK_REMINDER_ACTION_TYPE,
+          actions: [
+            { id: "done", title: "Сделано" },
+            { id: "snooze", title: "Отложить на 10 минут" }
+          ]
+        }]
+      });
+    }catch(e){}
+    LocalNotifications.addListener("localNotificationActionPerformed", handleNotificationAction);
+  }
+
+  async function snoozeTaskNotification(taskId, title, body){
+    if(!notificationsAvailable) return;
+    const snoozeId = notifSlotId(taskId, 8);
+    try{
+      await LocalNotifications.cancel({ notifications: [{ id: snoozeId }] });
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: snoozeId,
+          title: title || "Незабудка",
+          body: body || "Напоминание",
+          actionTypeId: TASK_REMINDER_ACTION_TYPE,
+          extra: { taskId },
+          schedule: { at: new Date(Date.now() + 10 * 60 * 1000), allowWhileIdle: true }
+        }]
+      });
+    }catch(e){}
+  }
+
+  async function handleNotificationAction(event){
+    const actionId = event && event.actionId;
+    const notification = (event && event.notification) || {};
+    const taskId = (notification.extra || {}).taskId;
+    if(!taskId) return;
+
+    if(actionId === "snooze"){
+      await snoozeTaskNotification(taskId, notification.title, notification.body);
+      showToast("Напомним через 10 минут");
+      return;
+    }
+    if(actionId === "done"){
+      await appReadyPromise;
+      await markDone(taskId);
+      activateTab("pet");
+      showToast("Отмечено по уведомлению");
+    }
   }
 
   // Runs once per app start: compares what's actually scheduled on the device
@@ -376,6 +778,49 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return "На этой неделе выполнено " + done + " из " + due + " дел (" + pct + "%).";
   }
 
+  // ---------- monthly summary (shown once per real calendar month) ----------
+  const MONTH_SUMMARY_KEY = "careMonthSummaryShown_v1";
+  const MONTH_SUMMARY_THRESHOLD_PCT = 70;
+
+  // Tied to the real calendar month, not the in-app time machine - jumping
+  // the demo date around shouldn't trigger or skip this.
+  function currentRealYearMonth(){
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+  }
+
+  function computeMonthlySummary(data){
+    const ym = currentRealYearMonth();
+    const today = realTodayStr();
+    const firstOfMonth = ym + "-01";
+    let due = 0, done = 0;
+    for(let d = firstOfMonth; d <= today; d = addDays(d, 1)){
+      const s = dayStats(data, d);
+      due += s.due; done += s.done;
+    }
+    const pct = due === 0 ? 0 : Math.round(done/due*100);
+    const finishedCourses = data.tasks.filter(t => t.type === "course" && isCourseFinished(t)).length;
+    return { pct, due, streak: computeStreak(data), finishedCourses };
+  }
+
+  function maybeShowMonthlySummary(){
+    const ym = currentRealYearMonth();
+    let lastShown = null;
+    try{ lastShown = localStorage.getItem(MONTH_SUMMARY_KEY); }catch(e){}
+    if(lastShown === ym) return;
+    const summary = computeMonthlySummary(getData());
+    if(summary.due === 0 || summary.pct < MONTH_SUMMARY_THRESHOLD_PCT) return;
+    document.getElementById("monthSummaryStreak").textContent = String(summary.streak);
+    document.getElementById("monthSummaryPct").textContent = summary.pct + "%";
+    document.getElementById("monthSummaryCourses").textContent = String(summary.finishedCourses);
+    document.getElementById("monthSummaryOverlay").classList.remove("hidden");
+    try{ localStorage.setItem(MONTH_SUMMARY_KEY, ym); }catch(e){}
+  }
+
+  document.getElementById("monthSummaryClose").addEventListener("click", () => {
+    document.getElementById("monthSummaryOverlay").classList.add("hidden");
+  });
+
   function pctBucketClass(due, done){
     if(due === 0) return "heat-none";
     const pct = done/due*100;
@@ -397,6 +842,81 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const weekSummaryTextEl = document.getElementById("weekSummaryText");
   const pointsValueTopEl = document.getElementById("pointsValueTop");
   const petNameDisplayEl = document.getElementById("petNameDisplay");
+  const petPhraseEl = document.getElementById("petPhrase");
+  const stageWrapEl = document.getElementById("stageWrap");
+
+  function speciesInfo(id){
+    return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
+  }
+
+  function applySpeciesTheme(speciesId){
+    const info = speciesInfo(speciesId);
+    const p = info.palette;
+    const leafStops = document.querySelectorAll("#leafGrad stop");
+    if(leafStops[0]) leafStops[0].setAttribute("stop-color", p.leafFrom);
+    if(leafStops[1]) leafStops[1].setAttribute("stop-color", p.leafTo);
+    const potStops = document.querySelectorAll("#potGrad stop");
+    if(potStops[0]) potStops[0].setAttribute("stop-color", p.potFrom);
+    if(potStops[1]) potStops[1].setAttribute("stop-color", p.potTo);
+    document.querySelectorAll("#plantStage g.flower").forEach((g, i) => {
+      const color = (i % 2 === 0) ? p.petal : p.petalAlt;
+      g.querySelectorAll("ellipse").forEach(el => el.setAttribute("fill", color));
+      const circle = g.querySelector("circle");
+      if(circle) circle.setAttribute("fill", p.center);
+    });
+    plantStage.classList.toggle("rare-active", !!info.rare);
+  }
+
+  function applyScene(sceneId){
+    stageWrapEl.classList.remove("scene-greenhouse","scene-balcony");
+    if(sceneId === "greenhouse") stageWrapEl.classList.add("scene-greenhouse");
+    else if(sceneId === "balcony") stageWrapEl.classList.add("scene-balcony");
+  }
+
+  function timeOfDayBucket(){
+    const h = new Date().getHours();
+    if(h >= 6 && h < 12) return "morning";
+    if(h >= 12 && h < 18) return "day";
+    return "evening";
+  }
+  function moodBucketFromPct(pct){
+    if(pct >= 70) return "good";
+    if(pct >= 40) return "mid";
+    return "low";
+  }
+  let lastPhraseKey = null;
+  let lastPhraseText = "";
+  function supportivePhrase(pct){
+    const tod = timeOfDayBucket();
+    const mood = moodBucketFromPct(pct);
+    const key = tod + "|" + mood;
+    if(key === lastPhraseKey) return lastPhraseText;
+    const pool = SUPPORTIVE_PHRASES[tod][mood];
+    const storageKey = "carePhraseLast_" + key;
+    let lastIdx = Number(localStorage.getItem(storageKey));
+    let idx;
+    do{ idx = Math.floor(Math.random() * pool.length); }while(pool.length > 1 && idx === lastIdx);
+    localStorage.setItem(storageKey, String(idx));
+    lastPhraseKey = key;
+    lastPhraseText = pool[idx];
+    return lastPhraseText;
+  }
+
+  // ---------- achievements: unobtrusive unlock toast ----------
+  const ACHV_SEEN_KEY = "careSeenAchievements_v1";
+  function getSeenAchievementIds(){
+    try{ return JSON.parse(localStorage.getItem(ACHV_SEEN_KEY) || "[]"); }catch(e){ return []; }
+  }
+  function checkNewAchievements(data){
+    const unlockedIds = (data.achievements || []).map(a => a.id);
+    const seen = getSeenAchievementIds();
+    const newOnes = unlockedIds.filter(id => seen.indexOf(id) === -1);
+    if(newOnes.length){
+      const info = ACHIEVEMENTS_CATALOG.find(a => a.id === newOnes[0]);
+      if(info) showToast("🏆 Новое достижение: " + info.title, 3200);
+    }
+    localStorage.setItem(ACHV_SEEN_KEY, JSON.stringify(unlockedIds));
+  }
 
   function renderPetScreen(){
     const data = getData();
@@ -411,6 +931,11 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
     petStatus.textContent = info.label;
     petCaption.textContent = info.caption;
+    petPhraseEl.textContent = supportivePhrase(pct);
+
+    applySpeciesTheme(data.activeSpeciesId);
+    applyScene(data.activeSceneId);
+    checkNewAchievements(data);
 
     moodIcon.textContent = info.icon;
     moodLabel.textContent = info.label;
@@ -763,11 +1288,13 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return div.innerHTML;
   }
 
-  function showToast(text){
+  let toastTimer = null;
+  function showToast(text, duration){
     const toast = document.getElementById("toast");
     toast.textContent = text;
     toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 1800);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), duration || 1800);
   }
 
   function onMarkDoneClick(e){
@@ -803,10 +1330,37 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   }
 
   async function markDone(taskId){
+    const today = currentDateStr(data);
+    const task = data.tasks.find(t => t.id === taskId);
+    const wasAlreadyDone = task ? isDoneOn(task, today) : false;
+    if(task && !wasAlreadyDone){
+      // Reflect the tap immediately regardless of connectivity - reconciled
+      // against the server's real response below, or queued for retry if
+      // we turn out to be offline, so a slow/dead connection never makes
+      // "Done" look like it did nothing.
+      task.completions.push(today);
+      data.points = (data.points || 0) + POINTS_PER_COMPLETION;
+      lastCompletedId = taskId;
+      renderAll();
+    }
+
     let result;
     try{
       result = await apiCall("POST", "/api/patients/" + data.id + "/obligations/" + taskId + "/complete");
     }catch(e){
+      if(e.offline){
+        if(task && !wasAlreadyDone){
+          addPendingCompletion(taskId, today);
+          saveCache(data);
+          enterOfflineMode();
+        }
+        return;
+      }
+      if(task && !wasAlreadyDone){
+        task.completions = task.completions.filter(d => d !== today);
+        data.points = Math.max(0, (data.points || 0) - POINTS_PER_COMPLETION);
+        renderAll();
+      }
       return;
     }
     if(result.alreadyDone){
@@ -855,7 +1409,9 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     pet: document.getElementById("screen-pet"),
     tasks: document.getElementById("screen-tasks"),
     rewards: document.getElementById("screen-rewards"),
-    journal: document.getElementById("screen-journal")
+    journal: document.getElementById("screen-journal"),
+    collection: document.getElementById("screen-collection"),
+    achievements: document.getElementById("screen-achievements")
   };
   function activateTab(tabKey){
     tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === tabKey));
@@ -874,6 +1430,12 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const weekdaysWrap = document.getElementById("weekdaysWrap");
   const weekdayPicker = document.getElementById("weekdayPicker");
   const taskNameInput = document.getElementById("taskName");
+  document.querySelectorAll("#templateChips .chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      taskNameInput.value = btn.dataset.name;
+      taskNameInput.focus();
+    });
+  });
   const taskTimeInput = document.getElementById("taskTime");
   const courseDaysInput = document.getElementById("courseDays");
   const editModeTag = document.getElementById("editModeTag");
@@ -1504,10 +2066,13 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     applyTheme(data.theme);
     renderAll();
     startPolling();
+    flushPendingCompletions();
+    maybeShowMonthlySummary();
     if(notificationsAvailable){
       await checkAndRequestNotificationPermission();
       await reconcileAllNotifications();
     }
+    resolveAppReady();
   }
 
   welcomeStartNewBtn.addEventListener("click", async () => {
@@ -1548,13 +2113,144 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   function startPolling(){
     if(pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
-      try{
-        await refreshData();
-        renderAll();
-      }catch(e){
-        // transient network/server error - try again on the next tick
-      }
+      await refreshDataQuiet();
+      renderAll();
     }, POLL_INTERVAL_MS);
+  }
+
+  // ---------- rendering: collection (species + scenes) ----------
+  const collectionSpeciesGridEl = document.getElementById("collectionSpeciesGrid");
+  const collectionSceneGridEl = document.getElementById("collectionSceneGrid");
+
+  async function buySpecies(speciesId){
+    try{
+      data = await apiCall("POST", "/api/patients/" + data.id + "/collection/species/" + speciesId + "/buy");
+      renderAll();
+    }catch(e){
+      showToast(e.body && e.body.error === "not_enough_points" ? "Не хватает баллов" : "Не удалось купить");
+    }
+  }
+  async function selectSpecies(speciesId){
+    data = await apiCall("POST", "/api/patients/" + data.id + "/collection/species/" + speciesId + "/select");
+    renderAll();
+  }
+  async function selectScene(sceneId){
+    data = await apiCall("POST", "/api/patients/" + data.id + "/collection/scene/" + sceneId + "/select");
+    renderAll();
+  }
+
+  function renderCollectionScreen(){
+    const data = getData();
+    const owned = data.ownedSpeciesIds || ["default"];
+
+    collectionSpeciesGridEl.innerHTML = "";
+    SPECIES_CATALOG.forEach(sp => {
+      const isOwned = owned.indexOf(sp.id) !== -1;
+      const isActive = data.activeSpeciesId === sp.id;
+
+      const tile = document.createElement("div");
+      tile.className = "species-tile" + (sp.rare ? " rare" : "") + (isOwned ? "" : " locked") + (isActive ? " active" : "");
+
+      const iconEl = document.createElement("span");
+      iconEl.className = "species-icon";
+      iconEl.textContent = sp.icon;
+      tile.appendChild(iconEl);
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "species-name";
+      nameEl.textContent = sp.name;
+      tile.appendChild(nameEl);
+
+      const metaEl = document.createElement("div");
+      metaEl.className = "species-meta";
+      metaEl.textContent = sp.rare
+        ? (isOwned ? "Получено за серию " + sp.streakThreshold + " дней" : "Награда за серию " + sp.streakThreshold + " дней подряд")
+        : (isOwned ? sp.desc : sp.cost + " баллов");
+      tile.appendChild(metaEl);
+
+      if(isActive){
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Выбрано";
+        btn.disabled = true;
+        tile.appendChild(btn);
+      }else if(isOwned){
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Выбрать";
+        btn.addEventListener("click", () => selectSpecies(sp.id));
+        tile.appendChild(btn);
+      }else if(!sp.rare){
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Купить";
+        btn.disabled = data.points < sp.cost;
+        btn.addEventListener("click", () => buySpecies(sp.id));
+        tile.appendChild(btn);
+      }
+      collectionSpeciesGridEl.appendChild(tile);
+    });
+
+    collectionSceneGridEl.innerHTML = "";
+    SCENE_CATALOG.forEach(sc => {
+      const isActive = (data.activeSceneId || "windowsill") === sc.id;
+      const tile = document.createElement("div");
+      tile.className = "scene-tile" + (isActive ? " active" : "");
+
+      const iconEl = document.createElement("span");
+      iconEl.className = "scene-icon";
+      iconEl.textContent = sc.icon;
+      tile.appendChild(iconEl);
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "scene-name";
+      nameEl.textContent = sc.name;
+      tile.appendChild(nameEl);
+
+      const descEl = document.createElement("div");
+      descEl.className = "scene-desc";
+      descEl.textContent = sc.desc;
+      tile.appendChild(descEl);
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = isActive ? "Выбрано" : "Выбрать";
+      btn.disabled = isActive;
+      btn.addEventListener("click", () => selectScene(sc.id));
+      tile.appendChild(btn);
+
+      collectionSceneGridEl.appendChild(tile);
+    });
+  }
+
+  // ---------- rendering: achievements ----------
+  const achievementsGridEl = document.getElementById("achievementsGrid");
+  function renderAchievementsScreen(){
+    const data = getData();
+    const unlockedIds = (data.achievements || []).map(a => a.id);
+    achievementsGridEl.innerHTML = "";
+    ACHIEVEMENTS_CATALOG.forEach(a => {
+      const unlocked = unlockedIds.indexOf(a.id) !== -1;
+      const tile = document.createElement("div");
+      tile.className = "achv-tile" + (unlocked ? " unlocked" : " locked");
+
+      const iconEl = document.createElement("span");
+      iconEl.className = "achv-icon";
+      iconEl.textContent = a.icon;
+      tile.appendChild(iconEl);
+
+      const titleEl = document.createElement("div");
+      titleEl.className = "achv-title";
+      titleEl.textContent = a.title;
+      tile.appendChild(titleEl);
+
+      const descEl = document.createElement("div");
+      descEl.className = "achv-desc";
+      descEl.textContent = a.desc;
+      tile.appendChild(descEl);
+
+      achievementsGridEl.appendChild(tile);
+    });
   }
 
   // ---------- init ----------
@@ -1564,22 +2260,44 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     renderTimeMachine();
     renderRewardsScreen();
     renderJournalScreen();
+    renderCollectionScreen();
+    renderAchievementsScreen();
     renderHeaderBadges();
     renderBanner();
   }
 
-  (async function init(){
+  function showBootError(){
+    bootSpinnerEl.classList.add("hidden");
+    bootTextEl.textContent = "Не удалось подключиться к серверу. Проверьте соединение с интернетом и попробуйте ещё раз.";
+    bootRetryBtnEl.classList.remove("hidden");
+    bootOverlayEl.classList.remove("hidden");
+  }
+
+  // Runs the connect-or-restore-patient sequence; re-run from the boot
+  // screen's retry button if it fails with no cached data to fall back on.
+  async function boot(){
     let hasPatient;
     try{
       hasPatient = await ensurePatient();
     }catch(e){
-      alert("Не удалось подключиться к серверу. Убедитесь, что сервер запущен (npm start), и обновите страницу.");
+      showBootError();
       return;
     }
+    bootOverlayEl.classList.add("hidden");
     if(!hasPatient){
       showWelcomeOverlay();
       return;
     }
     await finishBoot();
+  }
+
+  bootRetryBtnEl.addEventListener("click", () => {
+    bootRetryBtnEl.disabled = true;
+    boot().finally(() => { bootRetryBtnEl.disabled = false; });
+  });
+
+  (async function init(){
+    await registerNotificationHandlers();
+    await boot();
   })();
 })();

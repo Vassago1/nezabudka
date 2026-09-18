@@ -28,6 +28,14 @@
     </div>
   </header>
 
+  <div class="conn-banner conn-waking hidden" id="wakingBanner">
+    <span class="conn-spinner"></span>
+    <span>Просыпаемся, секунду…</span>
+  </div>
+  <div class="conn-banner conn-offline hidden" id="offlineBanner">
+    <span>Нет связи — показаны последние сохранённые данные</span>
+  </div>
+
   <div class="banner hidden" id="scheduleBanner">
     <div class="banner-text" id="scheduleBannerText"></div>
     <div class="banner-actions">
@@ -41,12 +49,15 @@
     <button class="tab" data-tab="tasks" type="button">Дела</button>
     <button class="tab" data-tab="rewards" type="button">Награды</button>
     <button class="tab" data-tab="journal" type="button">Дневник</button>
+    <button class="tab" data-tab="collection" type="button">Коллекция</button>
+    <button class="tab" data-tab="achievements" type="button">Достижения</button>
   </nav>
 
   <main>
     <section id="screen-pet" class="screen active">
       <div class="pet-card">
         <div class="pet-name" id="petNameDisplay">Незабудка</div>
+        <div class="stage-wrap" id="stageWrap">
         <svg id="plantStage" viewBox="0 0 240 340" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="leafGrad" x1="0" y1="0" x2="1" y2="1">
@@ -126,11 +137,14 @@
             <ellipse cx="120" cy="258" rx="56" ry="9" fill="#4A3A2E"/>
             <polygon points="66,258 174,258 158,320 82,320" fill="url(#potGrad)"/>
             <rect x="58" y="248" width="124" height="16" rx="6" fill="#A96B42"/>
+            <ellipse id="rareAccent" cx="120" cy="253" rx="63" ry="4" fill="none" stroke="#E4BE5C" stroke-width="2.5" opacity="0.85"/>
           </g>
         </svg>
+        </div>
 
         <div class="pet-status" id="petStatus">В порядке</div>
         <div class="pet-caption" id="petCaption">Большая часть дел выполнена.</div>
+        <div class="pet-phrase" id="petPhrase"></div>
         <div class="streak-line" id="streakLine"></div>
         <div class="growth-line" id="growthLine"></div>
         <div class="week-summary-line" id="weekSummaryText"></div>
@@ -163,6 +177,13 @@
 
       <form class="add-form hidden" id="addForm">
         <div class="edit-mode-tag hidden" id="editModeTag">Редактирование задачи</div>
+        <div class="template-chips" id="templateChips">
+          <button type="button" class="chip" data-name="Витамин D">Витамин D</button>
+          <button type="button" class="chip" data-name="Прогулка">Прогулка</button>
+          <button type="button" class="chip" data-name="Вода">Вода</button>
+          <button type="button" class="chip" data-name="Приём лекарства">Приём лекарства</button>
+          <button type="button" class="chip" data-name="Визит к врачу">Визит к врачу</button>
+        </div>
         <div>
           <label for="taskName">Название</label>
           <input id="taskName" type="text" placeholder="Например, Магний" required>
@@ -279,6 +300,28 @@
         <div class="empty-state hidden" id="journalEmpty">Записей пока нет. Заметки — это необязательно, но иногда приятно оглянуться назад.</div>
       </div>
     </section>
+
+    <section id="screen-collection" class="screen">
+      <div class="collection-section">
+        <div class="section-heading">
+          <h2>Растения</h2>
+        </div>
+        <div class="species-grid" id="collectionSpeciesGrid"></div>
+      </div>
+      <div class="collection-section">
+        <div class="section-heading">
+          <h2>Фон</h2>
+        </div>
+        <div class="scene-grid" id="collectionSceneGrid"></div>
+      </div>
+    </section>
+
+    <section id="screen-achievements" class="screen">
+      <div class="section-heading">
+        <h2>Достижения</h2>
+      </div>
+      <div class="achv-grid" id="achievementsGrid"></div>
+    </section>
   </main>
 </div>
 
@@ -382,6 +425,37 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="boot-overlay hidden" id="bootOverlay">
+  <div class="boot-card">
+    <div class="boot-spinner" id="bootSpinner"></div>
+    <div class="boot-text" id="bootText">Просыпаемся, секунду…</div>
+    <button type="button" class="btn-primary hidden" id="bootRetryBtn" style="margin-top:16px;">Повторить попытку</button>
+  </div>
+</div>
+
+<div class="celebrate-overlay hidden" id="monthSummaryOverlay">
+  <div class="celebrate-card">
+    <div class="celebrate-emoji">🌱</div>
+    <h3>Ваш месяц с Незабудкой</h3>
+    <div class="month-summary-stats">
+      <div>
+        <div class="month-summary-num" id="monthSummaryStreak">0</div>
+        <div class="month-summary-label">дней подряд</div>
+      </div>
+      <div>
+        <div class="month-summary-num" id="monthSummaryPct">0%</div>
+        <div class="month-summary-label">выполнено за месяц</div>
+      </div>
+      <div>
+        <div class="month-summary-num" id="monthSummaryCourses">0</div>
+        <div class="month-summary-label">курсов завершено</div>
+      </div>
+    </div>
+    <p id="monthSummaryPhrase">Хороший месяц — спасибо, что заботитесь о себе.</p>
+    <button type="button" class="btn-primary" id="monthSummaryClose">Продолжить</button>
+  </div>
+</div>
 
 <div class="celebrate-overlay hidden" id="welcomeOverlay">
   <div class="celebrate-card day-modal-card">
