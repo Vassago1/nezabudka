@@ -7,9 +7,20 @@
 
 const { query, isPostgres } = require("./db");
 
+// Postgres supports "ADD COLUMN IF NOT EXISTS" natively, so a column added
+// after the table already existed on a live database (e.g. Neon) just needs
+// one of these - no manual existence check needed like the SQLite path below.
+async function ensurePostgresColumn(table, columnDdl) {
+  await query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${columnDdl}`);
+}
+
 async function migratePostgres() {
-  // A fresh Neon/Postgres database has no legacy rows, so every column that
-  // SQLite only gained via a later ALTER TABLE is included directly here.
+  // CREATE TABLE IF NOT EXISTS only helps brand-new databases - once a table
+  // already exists (e.g. a live Neon database from an earlier deploy), it's
+  // a no-op and any column added here later never reaches it. Every column
+  // added after the initial patients table shipped MUST also get an
+  // ensurePostgresColumn() call below, or existing deployments will start
+  // throwing "column ... does not exist" the moment code reads/writes it.
   await query(`
     CREATE TABLE IF NOT EXISTS patients (
       id TEXT PRIMARY KEY,
@@ -162,6 +173,16 @@ async function migratePostgres() {
       PRIMARY KEY (patient_id, species_id)
     )
   `);
+
+  // These six columns were added to the patients table after it had already
+  // shipped to a live Neon database - CREATE TABLE IF NOT EXISTS above never
+  // reaches an existing table, so each one needs an explicit backfill here.
+  await ensurePostgresColumn("patients", "best_streak_ever INTEGER NOT NULL DEFAULT 0");
+  await ensurePostgresColumn("patients", "mood_diary_ever_shared INTEGER NOT NULL DEFAULT 0");
+  await ensurePostgresColumn("patients", "time_machine_used INTEGER NOT NULL DEFAULT 0");
+  await ensurePostgresColumn("patients", "active_species_id TEXT NOT NULL DEFAULT 'default'");
+  await ensurePostgresColumn("patients", "active_scene_id TEXT NOT NULL DEFAULT 'windowsill'");
+  await ensurePostgresColumn("patients", "last_seen_at TEXT");
 }
 
 async function ensureSqliteColumn(table, column, ddl) {
