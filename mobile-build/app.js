@@ -139,6 +139,8 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }
   };
 
+  const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+
   const MOODS = [
     { id:"calm", icon:"😌", label:"Спокойно" },
     { id:"content", icon:"🙂", label:"Хорошо" },
