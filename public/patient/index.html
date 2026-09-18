@@ -2050,13 +2050,22 @@
     return json;
   }
 
-  // Retries network-level failures (server unreachable, no connectivity) with
-  // a growing delay for up to a minute before giving up. A cold Render
-  // instance doesn't reject - it just answers slowly - so that case is
-  // handled separately by the waking-up indicator above, not by retrying.
-  // Once we know we're offline, calls fail fast instead of each blocking for
-  // up to a minute; a later successful call (background poll or a fresh
-  // action) is what notices the connection came back.
+  // A cold Render instance's own proxy often answers fast with 502/503/504
+  // while the container is still starting up, rather than holding the
+  // connection open - so those three statuses are treated as "still waking
+  // up", not as a final application error, and go through the same retry
+  // path as a network-level failure. Any other HTTP status is a real
+  // response from a running app (validation error, not found, etc.) and is
+  // never retried.
+  function isWakingUpStatus(status){
+    return status === 502 || status === 503 || status === 504;
+  }
+
+  // Retries network-level failures and wake-up-flavored HTTP errors with a
+  // growing delay for up to a minute before giving up. Once we know we're
+  // offline, calls fail fast instead of each blocking for up to a minute; a
+  // later successful call (background poll or a fresh action) is what
+  // notices the connection came back.
   async function apiCall(method, path, body, callOpts){
     const allowRetry = (!callOpts || callOpts.retry !== false) && !offlineMode;
     beginRequestTracking();
@@ -2069,7 +2078,8 @@
           exitOfflineMode();
           return result;
         }catch(e){
-          if(e.status !== undefined) throw e; // real application error - never retried
+          const isRealAppError = e.status !== undefined && !isWakingUpStatus(e.status);
+          if(isRealAppError) throw e; // never retried
           if(!allowRetry){ e.offline = true; throw e; }
           const delay = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
           if(Date.now() - startedAt + delay > RETRY_BUDGET_MS){
