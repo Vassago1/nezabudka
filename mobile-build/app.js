@@ -24,14 +24,30 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     "wilt": { icon:"😌", label:"Вяло", caption:"Стоит уделить немного внимания." },
     "wilt-severe": { icon:"😴", label:"Совсем вяло", caption:"Несколько дней без ухода — компаньон немного грустит, но справится." }
   };
-  // Cat is rendered from a photo per health state instead of the SVG rig
-  // (see .stage-photo / #plantStage.shape-cat in CSS) - dog and the plants
-  // still use the SVG rig untouched.
-  const CAT_STATE_PHOTOS = {
-    "bloom": "img/cat-great.webp",
-    "normal": "img/cat-good.webp",
-    "wilt": "img/cat-low.webp",
-    "wilt-severe": "img/cat-verylow.webp"
+  // Species that render from a photo per health state instead of the SVG
+  // rig, keyed by species id (not kind/shape - e.g. the default plant's
+  // shape is shared with a gold reward species that must keep the SVG
+  // rig). Species not listed here still use the SVG rig untouched -
+  // currently that's every plant species except the default one.
+  const PHOTO_STATE_FILES = {
+    "cat_default": {
+      "bloom": "img/cat-great.webp",
+      "normal": "img/cat-good.webp",
+      "wilt": "img/cat-low.webp",
+      "wilt-severe": "img/cat-verylow.webp"
+    },
+    "dog_default": {
+      "bloom": "img/dog-great.webp",
+      "normal": "img/dog-good.webp",
+      "wilt": "img/dog-low.webp",
+      "wilt-severe": "img/dog-verylow.webp"
+    },
+    "default": {
+      "bloom": "img/plant-great.webp",
+      "normal": "img/plant-good.webp",
+      "wilt": "img/plant-low.webp",
+      "wilt-severe": "img/plant-verylow.webp"
+    }
   };
   function stateInfoFor(state, kind){
     return (kind && kind !== "plant" ? STATE_INFO_ANIMAL : STATE_INFO)[state];
@@ -978,7 +994,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   // ---------- rendering: pet screen ----------
   const plantStage = document.getElementById("plantStage");
-  const catStageImg = document.getElementById("catStageImg");
+  const petStageImg = document.getElementById("petStageImg");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -1005,6 +1021,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     plantStage.classList.remove(...COMPANION_SHAPES.map(s => "shape-" + s));
     plantStage.classList.add("shape-" + shape);
     plantStage.classList.toggle("rare-active", !!info.rare);
+    plantStage.classList.toggle("photo-active", !!PHOTO_STATE_FILES[speciesId]);
 
     // Cat/dog carry their own fixed fur colors baked into the markup (there's
     // only one species per kind so far, nothing to recolor) instead of the
@@ -1102,9 +1119,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     applyScene(data.activeSceneId);
     checkNewAchievements(data);
 
-    if(speciesInfo(data.activeSpeciesId).kind === "cat"){
-      catStageImg.src = CAT_STATE_PHOTOS[state];
-      catStageImg.alt = info.label;
+    const photoStates = PHOTO_STATE_FILES[data.activeSpeciesId];
+    if(photoStates){
+      petStageImg.src = photoStates[state];
+      petStageImg.alt = info.label;
     }
 
     moodIcon.textContent = info.icon;

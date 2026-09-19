@@ -136,13 +136,17 @@
     max-width:150px;
     margin:0 auto;
     /* background already removed from the source image (transparent WebP) -
-       a drop-shadow (follows the cat's own silhouette) grounds it on the
+       a drop-shadow (follows the pet's own silhouette) grounds it on the
        scene photo instead of a box-shadow, which would draw a rectangle
        around the transparent margins. */
     filter:drop-shadow(0 6px 8px rgba(0,0,0,.3));
   }
-  #plantStage.shape-cat{display:none;}
-  #plantStage.shape-cat ~ .stage-photo{display:block;}
+  /* Toggled by applySpeciesTheme for whichever species has its own photo
+     set (see PHOTO_STATE_FILES) - species-id based, not shape/kind based,
+     since e.g. the default plant's shape is shared with a gold reward
+     species that still uses the SVG rig. */
+  #plantStage.photo-active{display:none;}
+  #plantStage.photo-active ~ .stage-photo{display:block;}
   .plant-group{
     transition:filter 1.3s ease;
   }
