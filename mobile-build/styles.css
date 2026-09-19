@@ -127,6 +127,19 @@
     max-width:280px;
     margin:0 auto;
   }
+  /* Cat uses a photo per health state instead of the SVG rig below - swap
+     visibility off the same shape-cat class applySpeciesTheme already sets,
+     no extra JS needed for show/hide. */
+  .stage-photo{
+    display:none;
+    width:100%;
+    max-width:280px;
+    margin:0 auto;
+    border-radius:20px;
+    box-shadow:var(--shadow);
+  }
+  #plantStage.shape-cat{display:none;}
+  #plantStage.shape-cat ~ .stage-photo{display:block;}
   .plant-group{
     transition:filter 1.3s ease;
   }

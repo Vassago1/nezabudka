@@ -134,6 +134,19 @@
     max-width:280px;
     margin:0 auto;
   }
+  /* Cat uses a photo per health state instead of the SVG rig below - swap
+     visibility off the same shape-cat class applySpeciesTheme already sets,
+     no extra JS needed for show/hide. */
+  .stage-photo{
+    display:none;
+    width:100%;
+    max-width:280px;
+    margin:0 auto;
+    border-radius:20px;
+    box-shadow:var(--shadow);
+  }
+  #plantStage.shape-cat{display:none;}
+  #plantStage.shape-cat ~ .stage-photo{display:block;}
   .plant-group{
     transition:filter 1.3s ease;
   }
@@ -1908,6 +1921,7 @@
             <ellipse id="rareAccent" cx="120" cy="253" rx="63" ry="4" fill="none" stroke="#E4BE5C" stroke-width="2.5" opacity="0.85"/>
           </g>
         </svg>
+        <img id="catStageImg" class="stage-photo" alt="" src="img/cat-great.webp">
         </div>
 
         <div class="pet-status" id="petStatus">В порядке</div>
@@ -2282,6 +2296,15 @@
     "normal": { icon:"🙂", label:"Хорошо", caption:"Большая часть дел выполнена." },
     "wilt": { icon:"😌", label:"Вяло", caption:"Стоит уделить немного внимания." },
     "wilt-severe": { icon:"😴", label:"Совсем вяло", caption:"Несколько дней без ухода — компаньон немного грустит, но справится." }
+  };
+  // Cat is rendered from a photo per health state instead of the SVG rig
+  // (see .stage-photo / #plantStage.shape-cat in CSS) - dog and the plants
+  // still use the SVG rig untouched.
+  const CAT_STATE_PHOTOS = {
+    "bloom": "img/cat-great.webp",
+    "normal": "img/cat-good.webp",
+    "wilt": "img/cat-low.webp",
+    "wilt-severe": "img/cat-verylow.webp"
   };
   function stateInfoFor(state, kind){
     return (kind && kind !== "plant" ? STATE_INFO_ANIMAL : STATE_INFO)[state];
@@ -2946,6 +2969,7 @@
 
   // ---------- rendering: pet screen ----------
   const plantStage = document.getElementById("plantStage");
+  const catStageImg = document.getElementById("catStageImg");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -3069,6 +3093,11 @@
     applySpeciesTheme(data.activeSpeciesId);
     applyScene(data.activeSceneId);
     checkNewAchievements(data);
+
+    if(speciesInfo(data.activeSpeciesId).kind === "cat"){
+      catStageImg.src = CAT_STATE_PHOTOS[state];
+      catStageImg.alt = info.label;
+    }
 
     moodIcon.textContent = info.icon;
     moodLabel.textContent = info.label;

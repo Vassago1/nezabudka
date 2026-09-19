@@ -24,6 +24,15 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     "wilt": { icon:"😌", label:"Вяло", caption:"Стоит уделить немного внимания." },
     "wilt-severe": { icon:"😴", label:"Совсем вяло", caption:"Несколько дней без ухода — компаньон немного грустит, но справится." }
   };
+  // Cat is rendered from a photo per health state instead of the SVG rig
+  // (see .stage-photo / #plantStage.shape-cat in CSS) - dog and the plants
+  // still use the SVG rig untouched.
+  const CAT_STATE_PHOTOS = {
+    "bloom": "img/cat-great.webp",
+    "normal": "img/cat-good.webp",
+    "wilt": "img/cat-low.webp",
+    "wilt-severe": "img/cat-verylow.webp"
+  };
   function stateInfoFor(state, kind){
     return (kind && kind !== "plant" ? STATE_INFO_ANIMAL : STATE_INFO)[state];
   }
@@ -885,6 +894,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   // ---------- rendering: pet screen ----------
   const plantStage = document.getElementById("plantStage");
+  const catStageImg = document.getElementById("catStageImg");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -1008,6 +1018,11 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     applySpeciesTheme(data.activeSpeciesId);
     applyScene(data.activeSceneId);
     checkNewAchievements(data);
+
+    if(speciesInfo(data.activeSpeciesId).kind === "cat"){
+      catStageImg.src = CAT_STATE_PHOTOS[state];
+      catStageImg.alt = info.label;
+    }
 
     moodIcon.textContent = info.icon;
     moodLabel.textContent = info.label;
