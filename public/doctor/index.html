@@ -133,12 +133,68 @@
     font-size:9px;
     color:rgba(58,54,46,0.45);
     user-select:none;
+    cursor:pointer;
   }
+  .heat-cell.selected{box-shadow:0 0 0 2px var(--sage);}
   .heat-none{background:transparent; border:1px dashed var(--border); color:var(--text-muted);}
   .heat-1{background:#E7E0D2;}
   .heat-2{background:#C6D6B8;}
   .heat-3{background:#9CBB86;}
   .heat-4{background:var(--sage-dark); color:rgba(255,255,255,0.85);}
+  .history-hint{
+    margin-top:10px;
+    text-align:center;
+    font-size:12px;
+    color:var(--text-muted);
+  }
+
+  /* ---------- day breakdown: which specific tasks were due/done on a
+     clicked heatmap day, not just the count - same isDueOn/isDoneOn logic
+     the heatmap cells themselves already use. ---------- */
+  .day-breakdown{
+    margin-top:12px;
+    background:var(--card-alt);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 16px;
+  }
+  .day-breakdown-date{
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:10px;
+  }
+  .day-breakdown-empty{
+    font-size:13px;
+    color:var(--text-muted);
+  }
+  .day-breakdown-list{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .day-breakdown-item{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    font-size:13.5px;
+  }
+  .day-breakdown-mark{
+    flex-shrink:0;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    font-weight:700;
+    color:#fff;
+  }
+  .day-breakdown-mark.done{background:var(--sage);}
+  .day-breakdown-mark.missed{background:var(--terracotta);}
 
   .section-heading{
     display:flex;
@@ -479,6 +535,12 @@
         <div class="history-block">
           <div class="history-title">История · 14 дней</div>
           <div class="history-grid" id="detailHistoryGrid"></div>
+          <div class="history-hint">Нажмите на день, чтобы посмотреть список задач</div>
+          <div class="day-breakdown hidden" id="dayBreakdown">
+            <div class="day-breakdown-date" id="dayBreakdownDate"></div>
+            <div class="day-breakdown-empty hidden" id="dayBreakdownEmpty">В этот день дел не было.</div>
+            <ul class="day-breakdown-list" id="dayBreakdownList"></ul>
+          </div>
         </div>
         <div class="form-actions" style="margin-top:16px;">
           <button type="button" class="btn-ghost" id="printReportBtn" style="width:100%;">🖨 Печать отчёта</button>
@@ -861,6 +923,11 @@
   const detailJournalListEl = document.getElementById("detailJournalList");
   const detailJournalEmptyEl = document.getElementById("detailJournalEmpty");
   const printReportBtn = document.getElementById("printReportBtn");
+  const dayBreakdownEl = document.getElementById("dayBreakdown");
+  const dayBreakdownDateEl = document.getElementById("dayBreakdownDate");
+  const dayBreakdownEmptyEl = document.getElementById("dayBreakdownEmpty");
+  const dayBreakdownListEl = document.getElementById("dayBreakdownList");
+  let selectedBreakdownDate = null;
 
   const MOOD_LABELS = { calm:"😌 Спокойно", content:"🙂 Хорошо", tired:"😴 Устало", stressed:"😣 Напряжённо", neutral:"😐 Никак" };
 
@@ -935,6 +1002,8 @@
       : "На этой неделе выполнено " + weekDone + " из " + weekDue + " дел.";
 
     detailHistoryGridEl.innerHTML = "";
+    selectedBreakdownDate = null;
+    dayBreakdownEl.classList.add("hidden");
     for(let i = 13; i >= 0; i--){
       const d = addDays(today, -i);
       const s = dayStats(detail.tasks, d);
@@ -943,6 +1012,7 @@
       cell.className = "heat-cell " + cls;
       cell.textContent = String(Number(d.split("-")[2]));
       cell.title = formatDisplayDate(d) + (s.due === 0 ? " — задач не было" : " — " + s.done + " из " + s.due + " выполнено");
+      cell.addEventListener("click", () => toggleDayBreakdown(d));
       detailHistoryGridEl.appendChild(cell);
     }
 
@@ -1009,6 +1079,51 @@
         detailObligationsListEl.appendChild(li);
       });
     }
+  }
+
+  // Which specific tasks were due/done on a given day - same isDueOn/isDoneOn
+  // logic the heatmap cell colors and patient's own history already use, just
+  // read out by name instead of collapsed into a percentage.
+  function toggleDayBreakdown(dateStr){
+    if(selectedBreakdownDate === dateStr){
+      selectedBreakdownDate = null;
+      dayBreakdownEl.classList.add("hidden");
+      Array.from(detailHistoryGridEl.children).forEach(c => c.classList.remove("selected"));
+      return;
+    }
+    selectedBreakdownDate = dateStr;
+    Array.from(detailHistoryGridEl.children).forEach((c, i) => {
+      const d = addDays(realTodayStr(), -(13 - i));
+      c.classList.toggle("selected", d === dateStr);
+    });
+    renderDayBreakdown(dateStr);
+  }
+
+  function renderDayBreakdown(dateStr){
+    const tasks = currentDetail.tasks;
+    dayBreakdownDateEl.textContent = formatDisplayDate(dateStr);
+    const dueTasks = tasks.filter(t => isDueOn(t, dateStr));
+
+    dayBreakdownListEl.innerHTML = "";
+    if(dueTasks.length === 0){
+      dayBreakdownEmptyEl.classList.remove("hidden");
+    }else{
+      dayBreakdownEmptyEl.classList.add("hidden");
+      dueTasks.forEach(task => {
+        const done = isDoneOn(task, dateStr);
+        const li = document.createElement("li");
+        li.className = "day-breakdown-item";
+        const mark = document.createElement("span");
+        mark.className = "day-breakdown-mark " + (done ? "done" : "missed");
+        mark.textContent = done ? "✓" : "✕";
+        const name = document.createElement("span");
+        name.textContent = task.name;
+        li.appendChild(mark);
+        li.appendChild(name);
+        dayBreakdownListEl.appendChild(li);
+      });
+    }
+    dayBreakdownEl.classList.remove("hidden");
   }
 
   // ---------- assign / edit obligation form ----------

@@ -594,8 +594,34 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   function notifSlotId(taskId, slot){
     return notifBaseId(taskId) * 10 + slot;
   }
-  const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 8, 9];
+  // Slot 7 = the "still not done" late reminder, one per task (today's
+  // occurrence only - see ensureLateReminder below).
+  const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   const TASK_REMINDER_ACTION_TYPE = "TASK_REMINDER";
+
+  // How long after a timed task's due time to send a second, separate
+  // reminder if it's still not marked done.
+  const LATE_REMINDER_DELAY_MS = 10 * 60 * 1000;
+  // Never signed as a personal note from the real doctor - the notification
+  // title uses the companion's own name ("<имя> напоминает"), not the
+  // doctor's, specifically so it can't be mistaken for one.
+  const LATE_REMINDER_MESSAGES = [
+    "Эй, дружище, не забудь про свою таблетку — самое время.",
+    "Твой компаньон немного заскучал без внимания. Не забыл про приём?",
+    "Небольшое напоминание — время для твоей дозы уже подошло.",
+    "Похоже, ты немного задержался. Всё в порядке? Не забудь про лекарство.",
+    "Пара минут — и всё будет по расписанию. Пора принять лекарство.",
+    "Твой организм скажет спасибо, если не откладывать это надолго.",
+    "Просто напоминаем — время приёма уже наступило.",
+    "Небольшая заминка? Ничего страшного, просто не забудь сейчас.",
+    "Твой компаньон подождёт, но лучше не затягивать с приёмом.",
+    "Самое время позаботиться о себе — пора принять лекарство.",
+    "Пропустить легко забыть, поэтому мы здесь, чтобы напомнить.",
+    "Пора вернуться к расписанию — твой приём ждёт.",
+    "Пять минут на себя — и дело сделано. Не забудь про лекарство.",
+    "Пусть это будет маленькой, но важной привычкой сегодня.",
+    "Пора — твой компаньон будет рад, что ты не забыл."
+  ];
 
   // What should currently be scheduled for this task, if anything. Paused and
   // already-finished courses don't get reminders - there's nothing useful to
@@ -645,23 +671,81 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(!notificationsAvailable || !notificationPermissionGranted) return;
     await cancelTaskNotifications(task.id);
     const plan = taskNotificationPlan(task);
-    if(plan.length === 0) return;
-    const body = "Незабудка напоминает: " + task.name;
-    const notifications = plan.map(p => {
-      const base = {
-        id: notifSlotId(task.id, p.slot),
-        title: "Незабудка",
-        body,
-        actionTypeId: TASK_REMINDER_ACTION_TYPE,
-        extra: { taskId: task.id }
-      };
-      if(p.at) return { ...base, schedule: { at: p.at, allowWhileIdle: true } };
-      if(p.weekday) return { ...base, schedule: { on: { weekday: p.weekday, hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
-      return { ...base, schedule: { on: { hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
-    });
+    if(plan.length > 0){
+      const companionName = getData().companionName || "Незабудка";
+      const body = companionName + " напоминает: " + task.name;
+      const notifications = plan.map(p => {
+        const base = {
+          id: notifSlotId(task.id, p.slot),
+          title: companionName,
+          body,
+          actionTypeId: TASK_REMINDER_ACTION_TYPE,
+          extra: { taskId: task.id }
+        };
+        if(p.at) return { ...base, schedule: { at: p.at, allowWhileIdle: true } };
+        if(p.weekday) return { ...base, schedule: { on: { weekday: p.weekday, hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
+        return { ...base, schedule: { on: { hour: p.hour, minute: p.minute }, allowWhileIdle: true } };
+      });
+      try{
+        await LocalNotifications.schedule({ notifications });
+      }catch(e){}
+    }
+    // cancelTaskNotifications above also wiped slot 7 (late reminder) -
+    // recompute whether today's occurrence still needs one.
+    await ensureLateReminder(task);
+  }
+
+  // A second, separate reminder if a timed task is still not done
+  // LATE_REMINDER_DELAY_MS after its scheduled time - deliberately not
+  // signed as a personal message from the real doctor (title is the
+  // companion's own name, never assignedByDoctorName), so it can't be
+  // mistaken for the doctor writing in personally. One slot per task,
+  // always for *today's* occurrence - recomputed (not persisted) from
+  // isDueOn/isDoneOn every time this runs, so call sites just need to call
+  // it again whenever due/done state might have changed (markDone, the
+  // poll loop, task create/edit/resume). Capacitor has no background
+  // scheduling API of its own, so this only stays accurate for days the
+  // app has actually been opened - same limitation reconcileAllNotifications
+  // documents for the main reminders.
+  async function ensureLateReminder(task){
+    if(!notificationsAvailable || !notificationPermissionGranted) return;
+    const lateId = notifSlotId(task.id, 7);
+    const currentData = getData();
+    if(!task.time || isTaskCurrentlyPaused(currentData, task)){
+      try{ await LocalNotifications.cancel({ notifications: [{ id: lateId }] }); }catch(e){}
+      return;
+    }
+    const today = currentDateStr(currentData);
+    if(!isDueOn(task, today) || isDoneOn(task, today)){
+      try{ await LocalNotifications.cancel({ notifications: [{ id: lateId }] }); }catch(e){}
+      return;
+    }
+    const [hh, mm] = task.time.split(":").map(Number);
+    const now = new Date();
+    const dueAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+    const lateAt = new Date(dueAt.getTime() + LATE_REMINDER_DELAY_MS);
+    if(lateAt.getTime() <= now.getTime()){
+      try{ await LocalNotifications.cancel({ notifications: [{ id: lateId }] }); }catch(e){}
+      return;
+    }
+    const message = LATE_REMINDER_MESSAGES[Math.floor(Math.random() * LATE_REMINDER_MESSAGES.length)];
     try{
-      await LocalNotifications.schedule({ notifications });
+      await LocalNotifications.schedule({ notifications: [{
+        id: lateId,
+        title: (currentData.companionName || "Незабудка") + " напоминает",
+        body: message,
+        actionTypeId: TASK_REMINDER_ACTION_TYPE,
+        extra: { taskId: task.id, late: true },
+        schedule: { at: lateAt, allowWhileIdle: true }
+      }] });
     }catch(e){}
+  }
+
+  async function ensureAllLateReminders(){
+    if(!notificationsAvailable || !notificationPermissionGranted) return;
+    for(const task of getData().tasks){
+      await ensureLateReminder(task);
+    }
   }
 
   // Registers the "Done" / "Snooze 10 min" notification buttons and the
@@ -1458,6 +1542,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       data.points = (data.points || 0) + POINTS_PER_COMPLETION;
       lastCompletedId = taskId;
       renderAll();
+      await ensureLateReminder(task);
     }
 
     let result;
@@ -1476,6 +1561,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
         task.completions = task.completions.filter(d => d !== today);
         data.points = Math.max(0, (data.points || 0) - POINTS_PER_COMPLETION);
         renderAll();
+        await ensureLateReminder(task);
       }
       return;
     }
@@ -1495,6 +1581,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       // A course that just finished is the same story; anything still ongoing
       // (daily / weekday) keeps its reminder for the next occurrence.
       if(doneTask.type === "once" || justFinished) await cancelTaskNotifications(taskId);
+      else await ensureLateReminder(doneTask);
     }
     if(justFinished){
       if(doneTask) showCourseCompleteModal(doneTask);
@@ -2205,6 +2292,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(notificationsAvailable){
       await checkAndRequestNotificationPermission();
       await reconcileAllNotifications();
+      await ensureAllLateReminders();
     }
     resolveAppReady();
   }
@@ -2256,6 +2344,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     pollTimer = setInterval(async () => {
       await refreshDataQuiet();
       renderAll();
+      // Keeps today's late reminders (see ensureLateReminder) accurate while
+      // the app is open - due time passing, a task getting marked done from
+      // another device, midnight rolling over to a new "today".
+      await ensureAllLateReminders();
     }, POLL_INTERVAL_MS);
   }
 
