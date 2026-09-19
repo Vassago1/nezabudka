@@ -124,7 +124,7 @@
   }
   #plantStage{
     width:100%;
-    max-width:280px;
+    max-width:150px;
     margin:0 auto;
   }
   /* Cat uses a photo per health state instead of the SVG rig below - swap
@@ -133,10 +133,13 @@
   .stage-photo{
     display:none;
     width:100%;
-    max-width:280px;
+    max-width:150px;
     margin:0 auto;
-    border-radius:20px;
-    box-shadow:var(--shadow);
+    /* background already removed from the source image (transparent WebP) -
+       a drop-shadow (follows the cat's own silhouette) grounds it on the
+       scene photo instead of a box-shadow, which would draw a rectangle
+       around the transparent margins. */
+    filter:drop-shadow(0 6px 8px rgba(0,0,0,.3));
   }
   #plantStage.shape-cat{display:none;}
   #plantStage.shape-cat ~ .stage-photo{display:block;}
@@ -1286,17 +1289,31 @@
   }
   .chip:hover{background:var(--sage-soft); border-color:var(--sage);}
 
-  /* ---------- pet scene background + supportive phrase ---------- */
+  /* ---------- pet scene background + supportive phrase ----------
+     Windowsill/balcony are real photos now - the box gets a fixed height
+     so the photo has a stable frame, and the pet (whichever is currently
+     shown - SVG rig or .stage-photo) sits flex-anchored to the bottom,
+     shrunk down (see #plantStage/.stage-photo max-width above) so the
+     scene reads as a backdrop instead of being fully covered by it.
+     Greenhouse stays a plain CSS gradient, untouched. ---------- */
   .stage-wrap{
     border-radius:16px;
-    padding:14px 10px 2px;
+    height:280px;
+    padding-bottom:16px;
     margin-bottom:2px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    overflow:hidden;
+    position:relative;
+    background-size:cover;
+    background-position:center;
     transition:background .5s ease;
   }
   .stage-wrap.scene-greenhouse{background:linear-gradient(180deg,#E3EDD9,#C9DFC0 85%);}
-  .stage-wrap.scene-balcony{background:linear-gradient(180deg,#F7DCB2,#EFAE8C 55%,#E28E93 100%);}
+  .stage-wrap.scene-balcony{background-image:url(img/scene-balcony.webp);}
+  .stage-wrap.scene-windowsill{background-image:url(img/scene-windowsill.webp);}
   html[data-theme="dark"] .stage-wrap.scene-greenhouse{background:linear-gradient(180deg,#2E3A28,#243422 85%);}
-  html[data-theme="dark"] .stage-wrap.scene-balcony{background:linear-gradient(180deg,#4A3A2E,#4A2E30 55%,#3A2430 100%);}
   .pet-phrase{
     margin-top:6px;
     font-size:12.5px;

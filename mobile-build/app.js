@@ -1033,9 +1033,8 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   }
 
   function applyScene(sceneId){
-    stageWrapEl.classList.remove("scene-greenhouse","scene-balcony");
-    if(sceneId === "greenhouse") stageWrapEl.classList.add("scene-greenhouse");
-    else if(sceneId === "balcony") stageWrapEl.classList.add("scene-balcony");
+    stageWrapEl.classList.remove("scene-greenhouse","scene-balcony","scene-windowsill");
+    stageWrapEl.classList.add("scene-" + (sceneId === "greenhouse" || sceneId === "balcony" ? sceneId : "windowsill"));
   }
 
   function timeOfDayBucket(){
