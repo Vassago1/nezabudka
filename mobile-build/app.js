@@ -16,25 +16,38 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     "wilt": { icon:"🍂", label:"Увядает", caption:"Стоит уделить немного внимания." },
     "wilt-severe": { icon:"🥀", label:"Нуждается в заботе", caption:"Несколько дней без ухода — растение это переживёт." }
   };
+  // Same 4 health tiers, worded for a companion that isn't a plant (no
+  // "blooms"/"wilts") - used whenever the active species' kind isn't "plant".
+  const STATE_INFO_ANIMAL = {
+    "bloom": { icon:"✨", label:"Отлично", caption:"Все обязательства выполняются вовремя." },
+    "normal": { icon:"🙂", label:"Хорошо", caption:"Большая часть дел выполнена." },
+    "wilt": { icon:"😌", label:"Вяло", caption:"Стоит уделить немного внимания." },
+    "wilt-severe": { icon:"😴", label:"Совсем вяло", caption:"Несколько дней без ухода — компаньон немного грустит, но справится." }
+  };
+  function stateInfoFor(state, kind){
+    return (kind && kind !== "plant" ? STATE_INFO_ANIMAL : STATE_INFO)[state];
+  }
 
   // ---------- collection: species, scenes, achievements (ids must match server/catalog.js) ----------
   const SPECIES_CATALOG = [
-    { id:"default", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false, shape:"default",
+    { id:"default", kind:"plant", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false, shape:"default",
       palette:{ leafFrom:"#8FAE79", leafTo:"#557141", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#E9A9C2", petalAlt:"#D5B9DE", center:"#F6E7B8" } },
-    { id:"fern", name:"Папоротник", icon:"🌿", desc:"Раскидистые резные ветки, никогда не цветёт", cost:55, rare:false, shape:"fern",
+    { id:"fern", kind:"plant", name:"Папоротник", icon:"🌿", desc:"Раскидистые резные ветки, никогда не цветёт", cost:55, rare:false, shape:"fern",
       palette:{ leafFrom:"#7FAE6E", leafTo:"#3F6E38", potFrom:"#C9A277", potTo:"#A47C52" } },
-    { id:"cactus", name:"Кактус", icon:"🌵", desc:"Колючий, но цветёт ярче всех, когда всё хорошо", cost:70, rare:false, shape:"cactus",
+    { id:"cactus", kind:"plant", name:"Кактус", icon:"🌵", desc:"Колючий, но цветёт ярче всех, когда всё хорошо", cost:70, rare:false, shape:"cactus",
       palette:{ leafFrom:"#7FB06B", leafTo:"#4C7A3A", potFrom:"#C9A277", potTo:"#A47C52" } },
-    { id:"ivy", name:"Плющ", icon:"🍃", desc:"Свисающие вниз плети, горшок на подвесной полке", cost:65, rare:false, shape:"ivy",
+    { id:"ivy", kind:"plant", name:"Плющ", icon:"🍃", desc:"Свисающие вниз плети, горшок на подвесной полке", cost:65, rare:false, shape:"ivy",
       palette:{ leafFrom:"#6FAE7A", leafTo:"#3D7A4C", potFrom:"#B49CC9", potTo:"#8D6FAE" } },
-    { id:"succulent", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья-подушечки", cost:50, rare:false, shape:"succulent",
+    { id:"succulent", kind:"plant", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья-подушечки", cost:50, rare:false, shape:"succulent",
       palette:{ leafFrom:"#7FB0A0", leafTo:"#3F7A66", potFrom:"#C9A277", potTo:"#A47C52", petal:"#9ED6C3", petalAlt:"#6FBFA6", center:"#EAF7F1" } },
-    { id:"rare_gold_30", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30, shape:"default",
+    { id:"rare_gold_30", kind:"plant", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30, shape:"default",
       palette:{ leafFrom:"#B7A55A", leafTo:"#7C6B2E", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F3D98A", petalAlt:"#EBCB68", center:"#FFF7E0" } },
-    { id:"rare_gold_60", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60, shape:"fern",
+    { id:"rare_gold_60", kind:"plant", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60, shape:"fern",
       palette:{ leafFrom:"#A7C7D9", leafTo:"#5E8FA6", potFrom:"#E7C877", potTo:"#B98F3E" } },
-    { id:"rare_gold_100", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
-      palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } }
+    { id:"rare_gold_100", kind:"plant", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
+      palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } },
+    { id:"cat_default", kind:"cat", name:"Кот", icon:"🐱", desc:"Ваш компаньон-кот", cost:0, rare:false, shape:"cat" },
+    { id:"dog_default", kind:"dog", name:"Собака", icon:"🐶", desc:"Ваш компаньон-собака", cost:0, rare:false, shape:"dog" }
   ];
   const SCENE_CATALOG = [
     { id:"windowsill", name:"Подоконник", icon:"🪟", desc:"Спокойный дневной свет — вид по умолчанию" },
@@ -515,6 +528,33 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return courseProgress(task) >= task.courseTotal;
   }
 
+  // A 90-day course counted in days reads as one distant, boring finish line -
+  // switch to weeks once a course is long enough that day-counting stops
+  // being a meaningful sense of progress. Mirrors calc.courseLengthTier
+  // server-side (kept in sync manually - no shared module between the two).
+  function courseLengthTier(courseTotal){
+    if(courseTotal <= 14) return "short";
+    if(courseTotal <= 30) return "medium";
+    return "long";
+  }
+  function courseProgressText(task){
+    const progress = courseProgress(task);
+    if(courseLengthTier(task.courseTotal) === "long"){
+      const totalWeeks = Math.ceil(task.courseTotal / 7);
+      const currentWeek = Math.min(Math.ceil(progress / 7) || 1, totalWeeks);
+      const pct = Math.round(progress / task.courseTotal * 100);
+      return "Неделя " + currentWeek + " из " + totalWeeks + " (" + pct + "%)";
+    }
+    return "Курс: " + progress + " из " + task.courseTotal + " дней";
+  }
+  // Tick marks on the progress bar at 25/50/75% - only medium-length courses
+  // (15-30 days) get them; short courses finish before a mid-course mark
+  // would mean anything, long ones already have the weekly text instead.
+  function courseProgressMarkers(task){
+    if(courseLengthTier(task.courseTotal) !== "medium") return [];
+    return [25, 50, 75];
+  }
+
   // ---------- native reminders (Capacitor LocalNotifications - no-op outside the app) ----------
   // window.Capacitor.Plugins is injected by the native Android WebView at
   // runtime; it doesn't exist when this same file is opened in a plain
@@ -862,16 +902,22 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
   }
 
-  const PLANT_SHAPES = ["default","succulent","fern","cactus","ivy"];
+  const COMPANION_SHAPES = ["default","succulent","fern","cactus","ivy","cat","dog"];
 
   function applySpeciesTheme(speciesId){
     const info = speciesInfo(speciesId);
-    const p = info.palette;
     const shape = info.shape || "default";
 
-    plantStage.classList.remove(...PLANT_SHAPES.map(s => "shape-" + s));
+    plantStage.classList.remove(...COMPANION_SHAPES.map(s => "shape-" + s));
     plantStage.classList.add("shape-" + shape);
+    plantStage.classList.toggle("rare-active", !!info.rare);
 
+    // Cat/dog carry their own fixed fur colors baked into the markup (there's
+    // only one species per kind so far, nothing to recolor) instead of the
+    // leaf/pot gradient + flower recolor system below, which is plant-only.
+    if(info.kind && info.kind !== "plant") return;
+
+    const p = info.palette;
     const leafStops = document.querySelectorAll("#leafGrad stop");
     if(leafStops[0]) leafStops[0].setAttribute("stop-color", p.leafFrom);
     if(leafStops[1]) leafStops[1].setAttribute("stop-color", p.leafTo);
@@ -890,7 +936,6 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
         if(circle) circle.setAttribute("fill", p.center);
       });
     }
-    plantStage.classList.toggle("rare-active", !!info.rare);
   }
 
   function applyScene(sceneId){
@@ -948,7 +993,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     const data = getData();
     const pct = computeHealthPercent(data);
     const state = healthState(pct);
-    const info = STATE_INFO[state];
+    const info = stateInfoFor(state, speciesInfo(data.activeSpeciesId).kind);
 
     petNameDisplayEl.textContent = data.companionName || "Незабудка";
 
@@ -1108,7 +1153,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(task.type === "once") parts.push("Разово, сегодня");
     else if(task.type === "ongoing") parts.push("Ежедневно");
     else if(task.type === "weekday") parts.push("По дням: " + formatWeekdaysShort(task.weekdays));
-    else if(task.type === "course") parts.push("Курс: " + courseProgress(task) + " из " + task.courseTotal + " дней");
+    else if(task.type === "course") parts.push(courseProgressText(task));
     return parts.join(" · ");
   }
 
@@ -1172,6 +1217,12 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
           fill.className = "task-progress-fill";
           fill.style.width = Math.round(courseProgress(task)/task.courseTotal*100) + "%";
           track.appendChild(fill);
+          courseProgressMarkers(task).forEach(pct => {
+            const marker = document.createElement("div");
+            marker.className = "task-progress-marker";
+            marker.style.left = pct + "%";
+            track.appendChild(marker);
+          });
           info.appendChild(track);
         }
 
@@ -1420,6 +1471,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }
     lastCompletedId = taskId;
     const justFinished = result.justFinished;
+    const courseMilestone = result.courseMilestone;
     await refreshData();
     renderAll();
     const doneTask = data.tasks.find(t => t.id === taskId);
@@ -1431,7 +1483,24 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }
     if(justFinished){
       if(doneTask) showCourseCompleteModal(doneTask);
+    }else if(courseMilestone){
+      if(doneTask) showCourseMilestoneReaction(doneTask, courseMilestone);
     }
+  }
+
+  // A smaller beat than the full course-finished celebration - a mid-course
+  // "still going" reaction so a 15-90 day course doesn't feel like one
+  // distant finish line. See calc.courseMilestoneForProgress (server) for
+  // when this fires: 25/50/75% marks for 15-30 day courses, once a week for
+  // longer ones.
+  function showCourseMilestoneReaction(task, milestone){
+    [-16, 8].forEach((dx, i) => {
+      setTimeout(() => spawnFloatText(plantStage, "⭐", "float-spark", dx), i * 150);
+    });
+    const label = milestone.type === "week"
+      ? "Неделя " + milestone.week + " курса «" + task.name + "» позади"
+      : milestone.value + "% курса «" + task.name + "» позади";
+    showToast("⭐ " + label, 2600);
   }
 
   // ---------- celebration overlay ----------
@@ -2100,7 +2169,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   // ---------- welcome screen (new device / cleared browser) ----------
   const welcomeOverlay = document.getElementById("welcomeOverlay");
-  const welcomeStartNewBtn = document.getElementById("welcomeStartNewBtn");
+  const companionTypeButtons = Array.from(document.querySelectorAll("#companionTypeGrid .companion-type-card"));
   const welcomeRecoveryInput = document.getElementById("welcomeRecoveryInput");
   const welcomeRecoveryBtn = document.getElementById("welcomeRecoveryBtn");
   const welcomeRecoveryError = document.getElementById("welcomeRecoveryError");
@@ -2125,16 +2194,23 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     resolveAppReady();
   }
 
-  welcomeStartNewBtn.addEventListener("click", async () => {
-    welcomeStartNewBtn.disabled = true;
-    try{
-      await createNewPatient();
-      hideWelcomeOverlay();
-      await finishBoot();
-    }catch(e){
-      welcomeStartNewBtn.disabled = false;
-      alert("Не удалось создать нового пациента. Убедитесь, что сервер запущен.");
-    }
+  companionTypeButtons.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      companionTypeButtons.forEach((b) => { b.disabled = true; });
+      try{
+        await createNewPatient();
+        const kind = btn.dataset.companionType;
+        if(kind !== "plant"){
+          data = await apiCall("POST", "/api/patients/" + data.id + "/collection/species/" + kind + "_default/select");
+          saveCache(data);
+        }
+        hideWelcomeOverlay();
+        await finishBoot();
+      }catch(e){
+        companionTypeButtons.forEach((b) => { b.disabled = false; });
+        alert("Не удалось создать нового пациента. Убедитесь, что сервер запущен.");
+      }
+    });
   });
 
   welcomeRecoveryBtn.addEventListener("click", async () => {

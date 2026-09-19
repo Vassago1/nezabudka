@@ -5,18 +5,33 @@
 // icon) lives client-side next to the rest of the UI copy - the server only
 // needs to validate purchases and evaluate unlock conditions.
 
+// "kind" is the companion type (plant/cat/dog) a species belongs to - purely
+// presentational (drives which SVG rig + palette the client renders), but
+// centralized here so the client derives "current companion type" from
+// activeSpeciesId instead of needing its own stored field.
 const SPECIES = [
-  { id: "default", cost: 0, rare: false }, // starter plant, owned by every patient
-  { id: "fern", cost: 55, rare: false },
-  { id: "cactus", cost: 70, rare: false },
-  { id: "ivy", cost: 65, rare: false },
-  { id: "succulent", cost: 50, rare: false },
-  { id: "rare_gold_30", cost: null, rare: true, streakThreshold: 30 },
-  { id: "rare_gold_60", cost: null, rare: true, streakThreshold: 60 },
-  { id: "rare_gold_100", cost: null, rare: true, streakThreshold: 100 },
+  { id: "default", cost: 0, rare: false, kind: "plant" }, // starter plant, owned by every patient
+  { id: "fern", cost: 55, rare: false, kind: "plant" },
+  { id: "cactus", cost: 70, rare: false, kind: "plant" },
+  { id: "ivy", cost: 65, rare: false, kind: "plant" },
+  { id: "succulent", cost: 50, rare: false, kind: "plant" },
+  { id: "rare_gold_30", cost: null, rare: true, streakThreshold: 30, kind: "plant" },
+  { id: "rare_gold_60", cost: null, rare: true, streakThreshold: 60, kind: "plant" },
+  { id: "rare_gold_100", cost: null, rare: true, streakThreshold: 100, kind: "plant" },
+  // Alternate starter companions, chosen once at patient creation (or later
+  // from the collection screen). Free and always owned, same as "default" -
+  // see STARTER_SPECIES_IDS below.
+  { id: "cat_default", cost: 0, rare: false, kind: "cat" },
+  { id: "dog_default", cost: 0, rare: false, kind: "dog" },
 ];
 
-const PURCHASABLE_SPECIES_IDS = SPECIES.filter((s) => !s.rare && s.id !== "default").map((s) => s.id);
+// Free companions every patient owns without a patient_species row - see
+// store.js getOwnedSpeciesIds, which force-includes these ids.
+const STARTER_SPECIES_IDS = ["default", "cat_default", "dog_default"];
+
+const PURCHASABLE_SPECIES_IDS = SPECIES.filter(
+  (s) => !s.rare && STARTER_SPECIES_IDS.indexOf(s.id) === -1
+).map((s) => s.id);
 const RARE_SPECIES = SPECIES.filter((s) => s.rare);
 
 const SCENE_IDS = ["windowsill", "greenhouse", "balcony"];
@@ -51,6 +66,7 @@ function findSpecies(speciesId) {
 
 module.exports = {
   SPECIES,
+  STARTER_SPECIES_IDS,
   PURCHASABLE_SPECIES_IDS,
   RARE_SPECIES,
   SCENE_IDS,

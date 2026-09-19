@@ -205,10 +205,16 @@
   #plantStage.shape-succulent .shape-succulent,
   #plantStage.shape-fern .shape-fern,
   #plantStage.shape-cactus .shape-cactus,
-  #plantStage.shape-ivy .shape-ivy{display:inline;}
+  #plantStage.shape-ivy .shape-ivy,
+  #plantStage.shape-cat .shape-cat,
+  #plantStage.shape-dog .shape-dog{display:inline;}
   /* ivy sits on its own elevated shelf+pot instead of the shared floor pot */
   #plantStage.shape-ivy .pot-group,
   #plantStage.shape-ivy .ground-shadow{display:none;}
+  /* cat/dog sit on the floor, not in a flowerpot - keep the ground shadow,
+     drop the pot */
+  #plantStage.shape-cat .pot-group,
+  #plantStage.shape-dog .pot-group{display:none;}
 
   /* Droop severity cascades from the health-state classes down through
      --droop; each leaf/frond/vine/segment multiplies it by its own
@@ -226,6 +232,43 @@
     transition:transform 1.3s ease;
     transform-origin:120px 258px;
     transform:rotate(calc(var(--droop, 0deg) * var(--droop-dir, 0.12)));
+  }
+
+  /* ---------- cat/dog pose: same --droop cascade the plant leaves use,
+     just applied to ears/tail/head instead of foliage. Every part is a
+     child of body-group/head-group, translated to the exact point on the
+     body/head it attaches at, and rotates around that point (transform-
+     origin 0,0 on the part itself) - so it visibly grows from the body
+     instead of floating next to it like a flag on a pole. ---------- */
+  .pose-part{
+    transition:transform 1.3s ease;
+    transform:rotate(calc(var(--base-rotate, 0deg) + (var(--droop, 0deg) * var(--droop-dir, 1))));
+  }
+  /* Positioned via an outer translate() wrapper (SVG attribute), same as
+     ears/tail below - a CSS transform on an element replaces its SVG
+     transform="" attribute instead of composing with it, so the rotating
+     part must be a separate inner group with transform-origin:0 0. */
+  .head-group{
+    transition:transform 1.3s ease;
+    transform:rotate(calc(var(--droop, 0deg) * 0.35deg));
+  }
+
+  .eyes-open, .eyes-sleepy, .eyes-closed, .sleep-marks{
+    transition:opacity .9s ease;
+    opacity:0;
+  }
+  .state-bloom .eyes-open, .state-normal .eyes-open{opacity:1;}
+  .state-wilt .eyes-sleepy{opacity:1;}
+  .state-wilt-severe .eyes-closed{opacity:1;}
+  .state-wilt-severe .sleep-marks{opacity:1;}
+  .sleep-mark{
+    animation:sleepMarkFloat 3.4s ease-in-out infinite;
+    transform-origin:0px 0px;
+  }
+  @keyframes sleepMarkFloat{
+    0%{transform:translateY(0) scale(.85); opacity:.55;}
+    50%{transform:translateY(-9px) scale(1); opacity:1;}
+    100%{transform:translateY(-16px) scale(.85); opacity:0;}
   }
 
   /* small leaflets/leaves fade a little as the plant wilts, on top of the
@@ -493,6 +536,7 @@
     color:var(--text-muted);
   }
   .task-progress-track{
+    position:relative;
     margin-top:8px;
     height:5px;
     background:var(--border);
@@ -506,6 +550,14 @@
     border-radius:3px;
     transition:width .5s ease;
   }
+  .task-progress-marker{
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:2px;
+    background:rgba(0,0,0,.2);
+  }
+  html[data-theme="dark"] .task-progress-marker{background:rgba(255,255,255,.28);}
   .btn-done{
     flex-shrink:0;
     background:var(--sage);
@@ -1118,6 +1170,26 @@
     line-height:1.5;
     text-align:center;
   }
+  .companion-type-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:10px;
+  }
+  .companion-type-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 6px 10px;
+    text-align:center;
+    cursor:pointer;
+    color:var(--text);
+    font:inherit;
+  }
+  .companion-type-card:hover{border-color:var(--sage); background:var(--sage-soft);}
+  .companion-type-card:disabled{opacity:.5; cursor:default;}
+  .companion-type-icon{font-size:30px; display:block; margin-bottom:6px;}
+  .companion-type-label{font-size:12.5px; font-weight:600;}
   .welcome-divider{
     display:flex;
     align-items:center;
@@ -1359,6 +1431,14 @@
             <linearGradient id="potGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#D59C6E"/>
               <stop offset="100%" stop-color="#B4784F"/>
+            </linearGradient>
+            <linearGradient id="catFurGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#E8B27E"/>
+              <stop offset="100%" stop-color="#CE8A50"/>
+            </linearGradient>
+            <linearGradient id="dogFurGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#D9A462"/>
+              <stop offset="100%" stop-color="#A9723C"/>
             </linearGradient>
           </defs>
 
@@ -1676,6 +1756,143 @@
                       <ellipse class="vine-leaf" cx="-6" cy="66" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(-20 -6 66)"/>
                       <ellipse class="vine-leaf" cx="5" cy="92" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(18 5 92)"/>
                       <ellipse class="vine-leaf" cx="-4" cy="118" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(-16 -4 118)"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <!-- ===== cat: chibi sitting silhouette. Ears/tail are each a
+                   translate() wrapper (anchored on the body/head outline)
+                   around a .pose-part group, so they rotate from that exact
+                   attachment point instead of floating next to the body. ===== -->
+              <g class="shape-group shape-cat">
+                <g class="body-group">
+                  <ellipse cx="98" cy="294" rx="15" ry="11" fill="url(#catFurGrad)"/>
+                  <ellipse cx="142" cy="294" rx="15" ry="11" fill="url(#catFurGrad)"/>
+
+                  <g transform="translate(166,255)">
+                    <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-10deg; --droop-dir:1.3;">
+                      <g class="idle-sway" style="animation-delay:.4s; animation-duration:5s;">
+                        <path d="M0,0 C14,-8 22,-30 14,-52 C9,-64 -2,-68 -10,-60"
+                              stroke="url(#catFurGrad)" stroke-width="15" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                  </g>
+
+                  <ellipse cx="120" cy="248" rx="52" ry="48" fill="url(#catFurGrad)"/>
+
+                  <g transform="translate(120,196)">
+                    <g class="head-group" style="transform-origin:0px 0px;">
+                      <g transform="translate(-26,-28)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-18deg; --droop-dir:-1;">
+                          <path d="M0,0 L-13,-32 L14,-16 Z" fill="url(#catFurGrad)"/>
+                          <path d="M-1,-5 L-8,-23 L7,-12 Z" fill="#F3C6C6"/>
+                        </g>
+                      </g>
+                      <g transform="translate(26,-28)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:18deg; --droop-dir:1;">
+                          <path d="M0,0 L13,-32 L-14,-16 Z" fill="url(#catFurGrad)"/>
+                          <path d="M1,-5 L8,-23 L-7,-12 Z" fill="#F3C6C6"/>
+                        </g>
+                      </g>
+
+                      <circle cx="0" cy="0" r="44" fill="url(#catFurGrad)"/>
+
+                      <line x1="-18" y1="12" x2="-40" y2="7" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="-18" y1="17" x2="-40" y2="17" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="18" y1="12" x2="40" y2="7" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="18" y1="17" x2="40" y2="17" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+
+                      <g class="eyes-open">
+                        <circle cx="-17" cy="-2" r="5.5" fill="#3A342E"/>
+                        <circle cx="17" cy="-2" r="5.5" fill="#3A342E"/>
+                        <circle cx="-15" cy="-4" r="1.5" fill="#fff"/>
+                        <circle cx="19" cy="-4" r="1.5" fill="#fff"/>
+                      </g>
+                      <g class="eyes-sleepy">
+                        <path d="M-24,-2 Q-17,4 -10,-2" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M10,-2 Q17,4 24,-2" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+                      <g class="eyes-closed">
+                        <path d="M-24,1 Q-17,6 -10,1" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M10,1 Q17,6 24,1" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+
+                      <path d="M-4,10 L4,10 L0,15 Z" fill="#E7A4BC"/>
+                      <path d="M0,15 L0,19" stroke="#8A6B49" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M0,19 Q-7,23 -12,19" stroke="#8A6B49" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+                      <path d="M0,19 Q7,23 12,19" stroke="#8A6B49" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+
+                      <g class="sleep-marks">
+                        <text class="sleep-mark" x="42" y="-34" font-size="13" fill="#8A7A63" style="animation-delay:0s;">z</text>
+                        <text class="sleep-mark" x="50" y="-44" font-size="16" fill="#8A7A63" style="animation-delay:.7s;">z</text>
+                        <text class="sleep-mark" x="59" y="-56" font-size="19" fill="#8A7A63" style="animation-delay:1.4s;">z</text>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <!-- ===== dog: same chibi rig as the cat (translate-anchored
+                   ears/tail rotating from their attachment point), floppy
+                   ears + a muzzle patch instead of pointed ears + whiskers. ===== -->
+              <g class="shape-group shape-dog">
+                <g class="body-group">
+                  <ellipse cx="96" cy="292" rx="16" ry="11" fill="url(#dogFurGrad)"/>
+                  <ellipse cx="144" cy="292" rx="16" ry="11" fill="url(#dogFurGrad)"/>
+
+                  <g transform="translate(168,258)">
+                    <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-6deg; --droop-dir:1.6;">
+                      <g class="idle-sway" style="animation-delay:.2s; animation-duration:4.4s;">
+                        <path d="M0,0 C16,-6 26,-24 22,-42 C19,-54 8,-58 0,-50"
+                              stroke="url(#dogFurGrad)" stroke-width="13" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                  </g>
+
+                  <ellipse cx="120" cy="250" rx="54" ry="46" fill="url(#dogFurGrad)"/>
+
+                  <g transform="translate(120,200)">
+                    <g class="head-group" style="transform-origin:0px 0px;">
+                      <g transform="translate(-36,-4)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-8deg; --droop-dir:.6;">
+                          <path d="M0,0 C-8,10 -14,30 -8,46 C-4,56 8,54 9,42 C10,26 6,10 0,0 Z" fill="#8C5F30"/>
+                        </g>
+                      </g>
+                      <g transform="translate(36,-4)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:8deg; --droop-dir:-.6;">
+                          <path d="M0,0 C8,10 14,30 8,46 C4,56 -8,54 -9,42 C-10,26 -6,10 0,0 Z" fill="#8C5F30"/>
+                        </g>
+                      </g>
+
+                      <circle cx="0" cy="0" r="42" fill="url(#dogFurGrad)"/>
+                      <ellipse cx="0" cy="22" rx="20" ry="15" fill="#F0DBB4"/>
+
+                      <g class="eyes-open">
+                        <circle cx="-15" cy="-8" r="6" fill="#3A342E"/>
+                        <circle cx="15" cy="-8" r="6" fill="#3A342E"/>
+                        <circle cx="-13" cy="-10" r="1.6" fill="#fff"/>
+                        <circle cx="17" cy="-10" r="1.6" fill="#fff"/>
+                      </g>
+                      <g class="eyes-sleepy">
+                        <path d="M-22,-8 Q-15,-2 -8,-8" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M8,-8 Q15,-2 22,-8" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+                      <g class="eyes-closed">
+                        <path d="M-22,-5 Q-15,0 -8,-5" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M8,-5 Q15,0 22,-5" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+
+                      <ellipse cx="0" cy="30" rx="6" ry="4.5" fill="#4A3A2E"/>
+                      <path d="M0,34 L0,38" stroke="#4A3A2E" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M0,38 Q-7,42 -12,38" stroke="#4A3A2E" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+                      <path d="M0,38 Q7,42 12,38" stroke="#4A3A2E" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+
+                      <g class="sleep-marks">
+                        <text class="sleep-mark" x="40" y="-30" font-size="13" fill="#8A7A63" style="animation-delay:0s;">z</text>
+                        <text class="sleep-mark" x="48" y="-40" font-size="16" fill="#8A7A63" style="animation-delay:.7s;">z</text>
+                        <text class="sleep-mark" x="57" y="-52" font-size="19" fill="#8A7A63" style="animation-delay:1.4s;">z</text>
+                      </g>
                     </g>
                   </g>
                 </g>
@@ -2008,7 +2225,21 @@
   <div class="celebrate-card day-modal-card">
     <div class="section-heading"><h2>Компаньон</h2></div>
     <div class="connect-caption">Похоже, вы открываете это приложение на новом устройстве или в новом браузере.</div>
-    <button type="button" class="btn-primary" id="welcomeStartNewBtn" style="width:100%;margin-top:10px;">Начать заново</button>
+    <div class="connect-caption" style="margin-top:10px;">Выберите компаньона, который будет расти вместе с вами:</div>
+    <div class="companion-type-grid" id="companionTypeGrid">
+      <button type="button" class="companion-type-card" data-companion-type="plant">
+        <span class="companion-type-icon">🌸</span>
+        <span class="companion-type-label">Растение</span>
+      </button>
+      <button type="button" class="companion-type-card" data-companion-type="cat">
+        <span class="companion-type-icon">🐱</span>
+        <span class="companion-type-label">Кот</span>
+      </button>
+      <button type="button" class="companion-type-card" data-companion-type="dog">
+        <span class="companion-type-icon">🐶</span>
+        <span class="companion-type-label">Собака</span>
+      </button>
+    </div>
 
     <div class="welcome-divider">или</div>
 
@@ -2044,25 +2275,38 @@
     "wilt": { icon:"🍂", label:"Увядает", caption:"Стоит уделить немного внимания." },
     "wilt-severe": { icon:"🥀", label:"Нуждается в заботе", caption:"Несколько дней без ухода — растение это переживёт." }
   };
+  // Same 4 health tiers, worded for a companion that isn't a plant (no
+  // "blooms"/"wilts") - used whenever the active species' kind isn't "plant".
+  const STATE_INFO_ANIMAL = {
+    "bloom": { icon:"✨", label:"Отлично", caption:"Все обязательства выполняются вовремя." },
+    "normal": { icon:"🙂", label:"Хорошо", caption:"Большая часть дел выполнена." },
+    "wilt": { icon:"😌", label:"Вяло", caption:"Стоит уделить немного внимания." },
+    "wilt-severe": { icon:"😴", label:"Совсем вяло", caption:"Несколько дней без ухода — компаньон немного грустит, но справится." }
+  };
+  function stateInfoFor(state, kind){
+    return (kind && kind !== "plant" ? STATE_INFO_ANIMAL : STATE_INFO)[state];
+  }
 
   // ---------- collection: species, scenes, achievements (ids must match server/catalog.js) ----------
   const SPECIES_CATALOG = [
-    { id:"default", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false, shape:"default",
+    { id:"default", kind:"plant", name:"Незабудка", icon:"🌸", desc:"Ваше стартовое растение", cost:0, rare:false, shape:"default",
       palette:{ leafFrom:"#8FAE79", leafTo:"#557141", potFrom:"#D59C6E", potTo:"#B4784F", petal:"#E9A9C2", petalAlt:"#D5B9DE", center:"#F6E7B8" } },
-    { id:"fern", name:"Папоротник", icon:"🌿", desc:"Раскидистые резные ветки, никогда не цветёт", cost:55, rare:false, shape:"fern",
+    { id:"fern", kind:"plant", name:"Папоротник", icon:"🌿", desc:"Раскидистые резные ветки, никогда не цветёт", cost:55, rare:false, shape:"fern",
       palette:{ leafFrom:"#7FAE6E", leafTo:"#3F6E38", potFrom:"#C9A277", potTo:"#A47C52" } },
-    { id:"cactus", name:"Кактус", icon:"🌵", desc:"Колючий, но цветёт ярче всех, когда всё хорошо", cost:70, rare:false, shape:"cactus",
+    { id:"cactus", kind:"plant", name:"Кактус", icon:"🌵", desc:"Колючий, но цветёт ярче всех, когда всё хорошо", cost:70, rare:false, shape:"cactus",
       palette:{ leafFrom:"#7FB06B", leafTo:"#4C7A3A", potFrom:"#C9A277", potTo:"#A47C52" } },
-    { id:"ivy", name:"Плющ", icon:"🍃", desc:"Свисающие вниз плети, горшок на подвесной полке", cost:65, rare:false, shape:"ivy",
+    { id:"ivy", kind:"plant", name:"Плющ", icon:"🍃", desc:"Свисающие вниз плети, горшок на подвесной полке", cost:65, rare:false, shape:"ivy",
       palette:{ leafFrom:"#6FAE7A", leafTo:"#3D7A4C", potFrom:"#B49CC9", potTo:"#8D6FAE" } },
-    { id:"succulent", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья-подушечки", cost:50, rare:false, shape:"succulent",
+    { id:"succulent", kind:"plant", name:"Суккулент", icon:"🪴", desc:"Плотные округлые листья-подушечки", cost:50, rare:false, shape:"succulent",
       palette:{ leafFrom:"#7FB0A0", leafTo:"#3F7A66", potFrom:"#C9A277", potTo:"#A47C52", petal:"#9ED6C3", petalAlt:"#6FBFA6", center:"#EAF7F1" } },
-    { id:"rare_gold_30", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30, shape:"default",
+    { id:"rare_gold_30", kind:"plant", name:"Золотая незабудка", icon:"✨", desc:"Награда за серию 30 дней подряд", cost:null, rare:true, streakThreshold:30, shape:"default",
       palette:{ leafFrom:"#B7A55A", leafTo:"#7C6B2E", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F3D98A", petalAlt:"#EBCB68", center:"#FFF7E0" } },
-    { id:"rare_gold_60", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60, shape:"fern",
+    { id:"rare_gold_60", kind:"plant", name:"Хрустальный папоротник", icon:"❄️", desc:"Награда за серию 60 дней подряд", cost:null, rare:true, streakThreshold:60, shape:"fern",
       palette:{ leafFrom:"#A7C7D9", leafTo:"#5E8FA6", potFrom:"#E7C877", potTo:"#B98F3E" } },
-    { id:"rare_gold_100", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
-      palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } }
+    { id:"rare_gold_100", kind:"plant", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
+      palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } },
+    { id:"cat_default", kind:"cat", name:"Кот", icon:"🐱", desc:"Ваш компаньон-кот", cost:0, rare:false, shape:"cat" },
+    { id:"dog_default", kind:"dog", name:"Собака", icon:"🐶", desc:"Ваш компаньон-собака", cost:0, rare:false, shape:"dog" }
   ];
   const SCENE_CATALOG = [
     { id:"windowsill", name:"Подоконник", icon:"🪟", desc:"Спокойный дневной свет — вид по умолчанию" },
@@ -2543,6 +2787,33 @@
     return courseProgress(task) >= task.courseTotal;
   }
 
+  // A 90-day course counted in days reads as one distant, boring finish line -
+  // switch to weeks once a course is long enough that day-counting stops
+  // being a meaningful sense of progress. Mirrors calc.courseLengthTier
+  // server-side (kept in sync manually - no shared module between the two).
+  function courseLengthTier(courseTotal){
+    if(courseTotal <= 14) return "short";
+    if(courseTotal <= 30) return "medium";
+    return "long";
+  }
+  function courseProgressText(task){
+    const progress = courseProgress(task);
+    if(courseLengthTier(task.courseTotal) === "long"){
+      const totalWeeks = Math.ceil(task.courseTotal / 7);
+      const currentWeek = Math.min(Math.ceil(progress / 7) || 1, totalWeeks);
+      const pct = Math.round(progress / task.courseTotal * 100);
+      return "Неделя " + currentWeek + " из " + totalWeeks + " (" + pct + "%)";
+    }
+    return "Курс: " + progress + " из " + task.courseTotal + " дней";
+  }
+  // Tick marks on the progress bar at 25/50/75% - only medium-length courses
+  // (15-30 days) get them; short courses finish before a mid-course mark
+  // would mean anything, long ones already have the weekly text instead.
+  function courseProgressMarkers(task){
+    if(courseLengthTier(task.courseTotal) !== "medium") return [];
+    return [25, 50, 75];
+  }
+
   function dayStats(data, dateStr){
     let due = 0, done = 0;
     data.tasks.forEach(task => {
@@ -2692,16 +2963,22 @@
     return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
   }
 
-  const PLANT_SHAPES = ["default","succulent","fern","cactus","ivy"];
+  const COMPANION_SHAPES = ["default","succulent","fern","cactus","ivy","cat","dog"];
 
   function applySpeciesTheme(speciesId){
     const info = speciesInfo(speciesId);
-    const p = info.palette;
     const shape = info.shape || "default";
 
-    plantStage.classList.remove(...PLANT_SHAPES.map(s => "shape-" + s));
+    plantStage.classList.remove(...COMPANION_SHAPES.map(s => "shape-" + s));
     plantStage.classList.add("shape-" + shape);
+    plantStage.classList.toggle("rare-active", !!info.rare);
 
+    // Cat/dog carry their own fixed fur colors baked into the markup (there's
+    // only one species per kind so far, nothing to recolor) instead of the
+    // leaf/pot gradient + flower recolor system below, which is plant-only.
+    if(info.kind && info.kind !== "plant") return;
+
+    const p = info.palette;
     const leafStops = document.querySelectorAll("#leafGrad stop");
     if(leafStops[0]) leafStops[0].setAttribute("stop-color", p.leafFrom);
     if(leafStops[1]) leafStops[1].setAttribute("stop-color", p.leafTo);
@@ -2720,7 +2997,6 @@
         if(circle) circle.setAttribute("fill", p.center);
       });
     }
-    plantStage.classList.toggle("rare-active", !!info.rare);
   }
 
   function applyScene(sceneId){
@@ -2778,7 +3054,7 @@
     const data = getData();
     const pct = computeHealthPercent(data);
     const state = healthState(pct);
-    const info = STATE_INFO[state];
+    const info = stateInfoFor(state, speciesInfo(data.activeSpeciesId).kind);
 
     petNameDisplayEl.textContent = data.companionName || "Незабудка";
 
@@ -2937,7 +3213,7 @@
     if(task.type === "once") parts.push("Разово, сегодня");
     else if(task.type === "ongoing") parts.push("Ежедневно");
     else if(task.type === "weekday") parts.push("По дням: " + formatWeekdaysShort(task.weekdays));
-    else if(task.type === "course") parts.push("Курс: " + courseProgress(task) + " из " + task.courseTotal + " дней");
+    else if(task.type === "course") parts.push(courseProgressText(task));
     return parts.join(" · ");
   }
 
@@ -3001,6 +3277,12 @@
           fill.className = "task-progress-fill";
           fill.style.width = Math.round(courseProgress(task)/task.courseTotal*100) + "%";
           track.appendChild(fill);
+          courseProgressMarkers(task).forEach(pct => {
+            const marker = document.createElement("div");
+            marker.className = "task-progress-marker";
+            marker.style.left = pct + "%";
+            track.appendChild(marker);
+          });
           info.appendChild(track);
         }
 
@@ -3245,12 +3527,31 @@
     }
     lastCompletedId = taskId;
     const justFinished = result.justFinished;
+    const courseMilestone = result.courseMilestone;
     await refreshData();
     renderAll();
     if(justFinished){
       const doneTask = data.tasks.find(t => t.id === taskId);
       if(doneTask) showCourseCompleteModal(doneTask);
+    }else if(courseMilestone){
+      const doneTask = data.tasks.find(t => t.id === taskId);
+      if(doneTask) showCourseMilestoneReaction(doneTask, courseMilestone);
     }
+  }
+
+  // A smaller beat than the full course-finished celebration - a mid-course
+  // "still going" reaction so a 15-90 day course doesn't feel like one
+  // distant finish line. See calc.courseMilestoneForProgress (server) for
+  // when this fires: 25/50/75% marks for 15-30 day courses, once a week for
+  // longer ones.
+  function showCourseMilestoneReaction(task, milestone){
+    [-16, 8].forEach((dx, i) => {
+      setTimeout(() => spawnFloatText(plantStage, "⭐", "float-spark", dx), i * 150);
+    });
+    const label = milestone.type === "week"
+      ? "Неделя " + milestone.week + " курса «" + task.name + "» позади"
+      : milestone.value + "% курса «" + task.name + "» позади";
+    showToast("⭐ " + label, 2600);
   }
 
   // ---------- celebration overlay ----------
@@ -3902,7 +4203,7 @@
 
   // ---------- welcome screen (new device / cleared browser) ----------
   const welcomeOverlay = document.getElementById("welcomeOverlay");
-  const welcomeStartNewBtn = document.getElementById("welcomeStartNewBtn");
+  const companionTypeButtons = Array.from(document.querySelectorAll("#companionTypeGrid .companion-type-card"));
   const welcomeRecoveryInput = document.getElementById("welcomeRecoveryInput");
   const welcomeRecoveryBtn = document.getElementById("welcomeRecoveryBtn");
   const welcomeRecoveryError = document.getElementById("welcomeRecoveryError");
@@ -3922,16 +4223,23 @@
     maybeShowMonthlySummary();
   }
 
-  welcomeStartNewBtn.addEventListener("click", async () => {
-    welcomeStartNewBtn.disabled = true;
-    try{
-      await createNewPatient();
-      hideWelcomeOverlay();
-      await finishBoot();
-    }catch(e){
-      welcomeStartNewBtn.disabled = false;
-      alert("Не удалось создать нового пациента. Убедитесь, что сервер запущен.");
-    }
+  companionTypeButtons.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      companionTypeButtons.forEach((b) => { b.disabled = true; });
+      try{
+        await createNewPatient();
+        const kind = btn.dataset.companionType;
+        if(kind !== "plant"){
+          data = await apiCall("POST", "/api/patients/" + data.id + "/collection/species/" + kind + "_default/select");
+          saveCache(data);
+        }
+        hideWelcomeOverlay();
+        await finishBoot();
+      }catch(e){
+        companionTypeButtons.forEach((b) => { b.disabled = false; });
+        alert("Не удалось создать нового пациента. Убедитесь, что сервер запущен.");
+      }
+    });
   });
 
   welcomeRecoveryBtn.addEventListener("click", async () => {

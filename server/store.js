@@ -280,7 +280,9 @@ async function getLinkedDoctorForPatient(patientId) {
 async function getOwnedSpeciesIds(patientId) {
   const rows = await all("SELECT species_id FROM patient_species WHERE patient_id = $1", [patientId]);
   const owned = rows.map((r) => r.species_id);
-  if (owned.indexOf("default") === -1) owned.push("default");
+  catalog.STARTER_SPECIES_IDS.forEach((id) => {
+    if (owned.indexOf(id) === -1) owned.push(id);
+  });
   return owned;
 }
 
@@ -365,7 +367,9 @@ async function evaluateProgress(patientId) {
 
 async function buyPlantSpecies(patientId, speciesId) {
   const species = catalog.findSpecies(speciesId);
-  if (!species || species.rare || species.id === "default") return { error: "not_purchasable" };
+  if (!species || species.rare || catalog.STARTER_SPECIES_IDS.indexOf(species.id) !== -1) {
+    return { error: "not_purchasable" };
+  }
   const patient = await getPatientRow(patientId);
   if (!patient) return null;
   const owned = await getOwnedSpeciesIds(patientId);
@@ -687,7 +691,17 @@ async function completeObligation(obligationId, patientId) {
     justFinished = true;
   }
 
-  return { obligation: await getObligationObject(obligationId), justFinished, alreadyDone: false };
+  // Intermediate "still going" reactions for courses too long to feel like
+  // progress one day at a time - see calc.courseMilestoneForProgress for the
+  // length-based rules (none under 15 days, %-marks 15-30, weekly beyond
+  // that). Derived fresh from the completion count every call instead of a
+  // persisted "already notified" flag, since progress only ever increases by
+  // one completion per day, so a given milestone count can only be reached
+  // once - nothing to double-fire or need to remember across requests.
+  const courseMilestone =
+    !justFinished && updated.type === "course" ? calc.courseMilestoneForProgress(progress, updated.courseTotal) : null;
+
+  return { obligation: await getObligationObject(obligationId), justFinished, courseMilestone, alreadyDone: false };
 }
 
 async function pauseObligation(obligationId, patientId) {

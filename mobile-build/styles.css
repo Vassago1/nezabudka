@@ -198,10 +198,16 @@
   #plantStage.shape-succulent .shape-succulent,
   #plantStage.shape-fern .shape-fern,
   #plantStage.shape-cactus .shape-cactus,
-  #plantStage.shape-ivy .shape-ivy{display:inline;}
+  #plantStage.shape-ivy .shape-ivy,
+  #plantStage.shape-cat .shape-cat,
+  #plantStage.shape-dog .shape-dog{display:inline;}
   /* ivy sits on its own elevated shelf+pot instead of the shared floor pot */
   #plantStage.shape-ivy .pot-group,
   #plantStage.shape-ivy .ground-shadow{display:none;}
+  /* cat/dog sit on the floor, not in a flowerpot - keep the ground shadow,
+     drop the pot */
+  #plantStage.shape-cat .pot-group,
+  #plantStage.shape-dog .pot-group{display:none;}
 
   /* Droop severity cascades from the health-state classes down through
      --droop; each leaf/frond/vine/segment multiplies it by its own
@@ -219,6 +225,43 @@
     transition:transform 1.3s ease;
     transform-origin:120px 258px;
     transform:rotate(calc(var(--droop, 0deg) * var(--droop-dir, 0.12)));
+  }
+
+  /* ---------- cat/dog pose: same --droop cascade the plant leaves use,
+     just applied to ears/tail/head instead of foliage. Every part is a
+     child of body-group/head-group, translated to the exact point on the
+     body/head it attaches at, and rotates around that point (transform-
+     origin 0,0 on the part itself) - so it visibly grows from the body
+     instead of floating next to it like a flag on a pole. ---------- */
+  .pose-part{
+    transition:transform 1.3s ease;
+    transform:rotate(calc(var(--base-rotate, 0deg) + (var(--droop, 0deg) * var(--droop-dir, 1))));
+  }
+  /* Positioned via an outer translate() wrapper (SVG attribute), same as
+     ears/tail below - a CSS transform on an element replaces its SVG
+     transform="" attribute instead of composing with it, so the rotating
+     part must be a separate inner group with transform-origin:0 0. */
+  .head-group{
+    transition:transform 1.3s ease;
+    transform:rotate(calc(var(--droop, 0deg) * 0.35deg));
+  }
+
+  .eyes-open, .eyes-sleepy, .eyes-closed, .sleep-marks{
+    transition:opacity .9s ease;
+    opacity:0;
+  }
+  .state-bloom .eyes-open, .state-normal .eyes-open{opacity:1;}
+  .state-wilt .eyes-sleepy{opacity:1;}
+  .state-wilt-severe .eyes-closed{opacity:1;}
+  .state-wilt-severe .sleep-marks{opacity:1;}
+  .sleep-mark{
+    animation:sleepMarkFloat 3.4s ease-in-out infinite;
+    transform-origin:0px 0px;
+  }
+  @keyframes sleepMarkFloat{
+    0%{transform:translateY(0) scale(.85); opacity:.55;}
+    50%{transform:translateY(-9px) scale(1); opacity:1;}
+    100%{transform:translateY(-16px) scale(.85); opacity:0;}
   }
 
   /* small leaflets/leaves fade a little as the plant wilts, on top of the
@@ -486,6 +529,7 @@
     color:var(--text-muted);
   }
   .task-progress-track{
+    position:relative;
     margin-top:8px;
     height:5px;
     background:var(--border);
@@ -499,6 +543,14 @@
     border-radius:3px;
     transition:width .5s ease;
   }
+  .task-progress-marker{
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:2px;
+    background:rgba(0,0,0,.2);
+  }
+  html[data-theme="dark"] .task-progress-marker{background:rgba(255,255,255,.28);}
   .btn-done{
     flex-shrink:0;
     background:var(--sage);
@@ -1111,6 +1163,26 @@
     line-height:1.5;
     text-align:center;
   }
+  .companion-type-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:10px;
+  }
+  .companion-type-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 6px 10px;
+    text-align:center;
+    cursor:pointer;
+    color:var(--text);
+    font:inherit;
+  }
+  .companion-type-card:hover{border-color:var(--sage); background:var(--sage-soft);}
+  .companion-type-card:disabled{opacity:.5; cursor:default;}
+  .companion-type-icon{font-size:30px; display:block; margin-bottom:6px;}
+  .companion-type-label{font-size:12.5px; font-weight:600;}
   .welcome-divider{
     display:flex;
     align-items:center;

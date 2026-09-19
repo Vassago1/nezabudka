@@ -68,6 +68,14 @@
               <stop offset="0%" stop-color="#D59C6E"/>
               <stop offset="100%" stop-color="#B4784F"/>
             </linearGradient>
+            <linearGradient id="catFurGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#E8B27E"/>
+              <stop offset="100%" stop-color="#CE8A50"/>
+            </linearGradient>
+            <linearGradient id="dogFurGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#D9A462"/>
+              <stop offset="100%" stop-color="#A9723C"/>
+            </linearGradient>
           </defs>
 
           <ellipse class="ground-shadow" cx="120" cy="322" rx="72" ry="9" fill="#000" opacity="0.07"/>
@@ -384,6 +392,143 @@
                       <ellipse class="vine-leaf" cx="-6" cy="66" rx="6.5" ry="4.3" fill="url(#leafGrad)" transform="rotate(-20 -6 66)"/>
                       <ellipse class="vine-leaf" cx="5" cy="92" rx="6" ry="4" fill="url(#leafGrad)" transform="rotate(18 5 92)"/>
                       <ellipse class="vine-leaf" cx="-4" cy="118" rx="5.5" ry="3.6" fill="url(#leafGrad)" transform="rotate(-16 -4 118)"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <!-- ===== cat: chibi sitting silhouette. Ears/tail are each a
+                   translate() wrapper (anchored on the body/head outline)
+                   around a .pose-part group, so they rotate from that exact
+                   attachment point instead of floating next to the body. ===== -->
+              <g class="shape-group shape-cat">
+                <g class="body-group">
+                  <ellipse cx="98" cy="294" rx="15" ry="11" fill="url(#catFurGrad)"/>
+                  <ellipse cx="142" cy="294" rx="15" ry="11" fill="url(#catFurGrad)"/>
+
+                  <g transform="translate(166,255)">
+                    <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-10deg; --droop-dir:1.3;">
+                      <g class="idle-sway" style="animation-delay:.4s; animation-duration:5s;">
+                        <path d="M0,0 C14,-8 22,-30 14,-52 C9,-64 -2,-68 -10,-60"
+                              stroke="url(#catFurGrad)" stroke-width="15" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                  </g>
+
+                  <ellipse cx="120" cy="248" rx="52" ry="48" fill="url(#catFurGrad)"/>
+
+                  <g transform="translate(120,196)">
+                    <g class="head-group" style="transform-origin:0px 0px;">
+                      <g transform="translate(-26,-28)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-18deg; --droop-dir:-1;">
+                          <path d="M0,0 L-13,-32 L14,-16 Z" fill="url(#catFurGrad)"/>
+                          <path d="M-1,-5 L-8,-23 L7,-12 Z" fill="#F3C6C6"/>
+                        </g>
+                      </g>
+                      <g transform="translate(26,-28)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:18deg; --droop-dir:1;">
+                          <path d="M0,0 L13,-32 L-14,-16 Z" fill="url(#catFurGrad)"/>
+                          <path d="M1,-5 L8,-23 L-7,-12 Z" fill="#F3C6C6"/>
+                        </g>
+                      </g>
+
+                      <circle cx="0" cy="0" r="44" fill="url(#catFurGrad)"/>
+
+                      <line x1="-18" y1="12" x2="-40" y2="7" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="-18" y1="17" x2="-40" y2="17" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="18" y1="12" x2="40" y2="7" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+                      <line x1="18" y1="17" x2="40" y2="17" stroke="#8A6B49" stroke-width="1.4" stroke-linecap="round"/>
+
+                      <g class="eyes-open">
+                        <circle cx="-17" cy="-2" r="5.5" fill="#3A342E"/>
+                        <circle cx="17" cy="-2" r="5.5" fill="#3A342E"/>
+                        <circle cx="-15" cy="-4" r="1.5" fill="#fff"/>
+                        <circle cx="19" cy="-4" r="1.5" fill="#fff"/>
+                      </g>
+                      <g class="eyes-sleepy">
+                        <path d="M-24,-2 Q-17,4 -10,-2" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M10,-2 Q17,4 24,-2" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+                      <g class="eyes-closed">
+                        <path d="M-24,1 Q-17,6 -10,1" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M10,1 Q17,6 24,1" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+
+                      <path d="M-4,10 L4,10 L0,15 Z" fill="#E7A4BC"/>
+                      <path d="M0,15 L0,19" stroke="#8A6B49" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M0,19 Q-7,23 -12,19" stroke="#8A6B49" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+                      <path d="M0,19 Q7,23 12,19" stroke="#8A6B49" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+
+                      <g class="sleep-marks">
+                        <text class="sleep-mark" x="42" y="-34" font-size="13" fill="#8A7A63" style="animation-delay:0s;">z</text>
+                        <text class="sleep-mark" x="50" y="-44" font-size="16" fill="#8A7A63" style="animation-delay:.7s;">z</text>
+                        <text class="sleep-mark" x="59" y="-56" font-size="19" fill="#8A7A63" style="animation-delay:1.4s;">z</text>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <!-- ===== dog: same chibi rig as the cat (translate-anchored
+                   ears/tail rotating from their attachment point), floppy
+                   ears + a muzzle patch instead of pointed ears + whiskers. ===== -->
+              <g class="shape-group shape-dog">
+                <g class="body-group">
+                  <ellipse cx="96" cy="292" rx="16" ry="11" fill="url(#dogFurGrad)"/>
+                  <ellipse cx="144" cy="292" rx="16" ry="11" fill="url(#dogFurGrad)"/>
+
+                  <g transform="translate(168,258)">
+                    <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-6deg; --droop-dir:1.6;">
+                      <g class="idle-sway" style="animation-delay:.2s; animation-duration:4.4s;">
+                        <path d="M0,0 C16,-6 26,-24 22,-42 C19,-54 8,-58 0,-50"
+                              stroke="url(#dogFurGrad)" stroke-width="13" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                  </g>
+
+                  <ellipse cx="120" cy="250" rx="54" ry="46" fill="url(#dogFurGrad)"/>
+
+                  <g transform="translate(120,200)">
+                    <g class="head-group" style="transform-origin:0px 0px;">
+                      <g transform="translate(-36,-4)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:-8deg; --droop-dir:.6;">
+                          <path d="M0,0 C-8,10 -14,30 -8,46 C-4,56 8,54 9,42 C10,26 6,10 0,0 Z" fill="#8C5F30"/>
+                        </g>
+                      </g>
+                      <g transform="translate(36,-4)">
+                        <g class="pose-part" style="transform-origin:0px 0px; --base-rotate:8deg; --droop-dir:-.6;">
+                          <path d="M0,0 C8,10 14,30 8,46 C4,56 -8,54 -9,42 C-10,26 -6,10 0,0 Z" fill="#8C5F30"/>
+                        </g>
+                      </g>
+
+                      <circle cx="0" cy="0" r="42" fill="url(#dogFurGrad)"/>
+                      <ellipse cx="0" cy="22" rx="20" ry="15" fill="#F0DBB4"/>
+
+                      <g class="eyes-open">
+                        <circle cx="-15" cy="-8" r="6" fill="#3A342E"/>
+                        <circle cx="15" cy="-8" r="6" fill="#3A342E"/>
+                        <circle cx="-13" cy="-10" r="1.6" fill="#fff"/>
+                        <circle cx="17" cy="-10" r="1.6" fill="#fff"/>
+                      </g>
+                      <g class="eyes-sleepy">
+                        <path d="M-22,-8 Q-15,-2 -8,-8" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M8,-8 Q15,-2 22,-8" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+                      <g class="eyes-closed">
+                        <path d="M-22,-5 Q-15,0 -8,-5" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                        <path d="M8,-5 Q15,0 22,-5" stroke="#3A342E" stroke-width="3" fill="none" stroke-linecap="round"/>
+                      </g>
+
+                      <ellipse cx="0" cy="30" rx="6" ry="4.5" fill="#4A3A2E"/>
+                      <path d="M0,34 L0,38" stroke="#4A3A2E" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M0,38 Q-7,42 -12,38" stroke="#4A3A2E" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+                      <path d="M0,38 Q7,42 12,38" stroke="#4A3A2E" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+
+                      <g class="sleep-marks">
+                        <text class="sleep-mark" x="40" y="-30" font-size="13" fill="#8A7A63" style="animation-delay:0s;">z</text>
+                        <text class="sleep-mark" x="48" y="-40" font-size="16" fill="#8A7A63" style="animation-delay:.7s;">z</text>
+                        <text class="sleep-mark" x="57" y="-52" font-size="19" fill="#8A7A63" style="animation-delay:1.4s;">z</text>
+                      </g>
                     </g>
                   </g>
                 </g>
@@ -720,7 +865,21 @@
   <div class="celebrate-card day-modal-card">
     <div class="section-heading"><h2>Компаньон</h2></div>
     <div class="connect-caption">Похоже, вы открываете это приложение на новом устройстве или в новом браузере.</div>
-    <button type="button" class="btn-primary" id="welcomeStartNewBtn" style="width:100%;margin-top:10px;">Начать заново</button>
+    <div class="connect-caption" style="margin-top:10px;">Выберите компаньона, который будет расти вместе с вами:</div>
+    <div class="companion-type-grid" id="companionTypeGrid">
+      <button type="button" class="companion-type-card" data-companion-type="plant">
+        <span class="companion-type-icon">🌸</span>
+        <span class="companion-type-label">Растение</span>
+      </button>
+      <button type="button" class="companion-type-card" data-companion-type="cat">
+        <span class="companion-type-icon">🐱</span>
+        <span class="companion-type-label">Кот</span>
+      </button>
+      <button type="button" class="companion-type-card" data-companion-type="dog">
+        <span class="companion-type-icon">🐶</span>
+        <span class="companion-type-label">Собака</span>
+      </button>
+    </div>
 
     <div class="welcome-divider">или</div>
 

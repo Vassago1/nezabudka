@@ -93,6 +93,41 @@ function computeStreak(obligations, todayStr) {
   return streak;
 }
 
+// How a course's progress should read depends on how long it is - a 7-day
+// course reads fine as a plain day counter, but a 90-day course counted in
+// days feels endless, so it switches to weeks; and a mid-length course gets
+// a couple of milestone reactions along the way instead of only at the end.
+function courseLengthTier(courseTotal) {
+  if (courseTotal <= 14) return "short";
+  if (courseTotal <= 30) return "medium";
+  return "long";
+}
+
+// progress/courseTotal are day counts (progress = completions so far).
+// Returns null, or the milestone this exact completion just reached -
+// { type: "percent", value: 25|50|75 } for medium courses, or
+// { type: "week", week } for long ones (every 7th completion, excluding the
+// final day - that's covered by the separate "course finished" celebration).
+function courseMilestoneForProgress(progress, courseTotal) {
+  const tier = courseLengthTier(courseTotal);
+  if (tier === "medium") {
+    const thresholds = [
+      [25, Math.round(courseTotal * 0.25)],
+      [50, Math.round(courseTotal * 0.5)],
+      [75, Math.round(courseTotal * 0.75)],
+    ];
+    const hit = thresholds.find(([, day]) => day > 0 && day < courseTotal && day === progress);
+    return hit ? { type: "percent", value: hit[0] } : null;
+  }
+  if (tier === "long") {
+    if (progress > 0 && progress < courseTotal && progress % 7 === 0) {
+      return { type: "week", week: progress / 7 };
+    }
+    return null;
+  }
+  return null;
+}
+
 function weeklyStats(obligations, todayStr) {
   let due = 0, done = 0;
   for (let i = 0; i < 7; i++) {
@@ -116,4 +151,6 @@ module.exports = {
   healthState,
   computeStreak,
   weeklyStats,
+  courseLengthTier,
+  courseMilestoneForProgress,
 };
