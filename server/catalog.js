@@ -23,11 +23,13 @@ const SPECIES = [
   // see STARTER_SPECIES_IDS below.
   { id: "cat_default", cost: 0, rare: false, kind: "cat" },
   { id: "dog_default", cost: 0, rare: false, kind: "dog" },
+  { id: "dragon_default", cost: 0, rare: false, kind: "dragon" },
+  { id: "seal_default", cost: 0, rare: false, kind: "seal" },
 ];
 
 // Free companions every patient owns without a patient_species row - see
 // store.js getOwnedSpeciesIds, which force-includes these ids.
-const STARTER_SPECIES_IDS = ["default", "cat_default", "dog_default"];
+const STARTER_SPECIES_IDS = ["default", "cat_default", "dog_default", "dragon_default", "seal_default"];
 
 const PURCHASABLE_SPECIES_IDS = SPECIES.filter(
   (s) => !s.rare && STARTER_SPECIES_IDS.indexOf(s.id) === -1

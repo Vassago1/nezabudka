@@ -42,6 +42,18 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       "wilt": "img/dog-low.webp",
       "wilt-severe": "img/dog-verylow.webp"
     },
+    "dragon_default": {
+      "bloom": "img/dragon-great.webp",
+      "normal": "img/dragon-good.webp",
+      "wilt": "img/dragon-low.webp",
+      "wilt-severe": "img/dragon-verylow.webp"
+    },
+    "seal_default": {
+      "bloom": "img/seal-great.webp",
+      "normal": "img/seal-good.webp",
+      "wilt": "img/seal-low.webp",
+      "wilt-severe": "img/seal-verylow.webp"
+    },
     "default": {
       "bloom": "img/plant-great.webp",
       "normal": "img/plant-good.webp",
@@ -72,7 +84,9 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     { id:"rare_gold_100", kind:"plant", name:"Феникс-цветок", icon:"🔥", desc:"Награда за серию 100 дней подряд", cost:null, rare:true, streakThreshold:100, shape:"cactus",
       palette:{ leafFrom:"#D98A52", leafTo:"#A5522A", potFrom:"#E7C877", potTo:"#B98F3E", petal:"#F0A34F", petalAlt:"#E67A4E", center:"#FFF1D6" } },
     { id:"cat_default", kind:"cat", name:"Кот", icon:"🐱", desc:"Ваш компаньон-кот", cost:0, rare:false, shape:"cat" },
-    { id:"dog_default", kind:"dog", name:"Собака", icon:"🐶", desc:"Ваш компаньон-собака", cost:0, rare:false, shape:"dog" }
+    { id:"dog_default", kind:"dog", name:"Собака", icon:"🐶", desc:"Ваш компаньон-собака", cost:0, rare:false, shape:"dog" },
+    { id:"dragon_default", kind:"dragon", name:"Дракон", icon:"🐉", desc:"Ваш компаньон-дракон", cost:0, rare:false, shape:"dragon" },
+    { id:"seal_default", kind:"seal", name:"Нерпа", icon:"🦭", desc:"Ваш компаньон-нерпа", cost:0, rare:false, shape:"seal" }
   ];
   const SCENE_CATALOG = [
     { id:"windowsill", name:"Подоконник", icon:"🪟", desc:"Спокойный дневной свет — вид по умолчанию" },
@@ -1128,7 +1142,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
   }
 
-  const COMPANION_SHAPES = ["default","succulent","fern","cactus","ivy","cat","dog"];
+  const COMPANION_SHAPES = ["default","succulent","fern","cactus","ivy","cat","dog","dragon","seal"];
 
   function applySpeciesTheme(speciesId){
     const info = speciesInfo(speciesId);
