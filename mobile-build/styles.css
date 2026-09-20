@@ -1294,12 +1294,11 @@
   .chip:hover{background:var(--sage-soft); border-color:var(--sage);}
 
   /* ---------- pet scene background + supportive phrase ----------
-     Windowsill/balcony are real photos now - the box gets a fixed height
-     so the photo has a stable frame, and the pet (whichever is currently
-     shown - SVG rig or .stage-photo) sits flex-anchored to the bottom,
-     shrunk down (see #plantStage/.stage-photo max-width above) so the
-     scene reads as a backdrop instead of being fully covered by it.
-     Greenhouse stays a plain CSS gradient, untouched. ---------- */
+     All 3 scenes are real photos - the box gets a fixed height so the
+     photo has a stable frame, and the pet (whichever is currently shown -
+     SVG rig or .stage-photo) sits flex-anchored to the bottom, shrunk down
+     (see #plantStage/.stage-photo max-width above) so the scene reads as a
+     backdrop instead of being fully covered by it. ---------- */
   .stage-wrap{
     border-radius:16px;
     height:280px;
@@ -1314,10 +1313,9 @@
     background-position:center;
     transition:background .5s ease;
   }
-  .stage-wrap.scene-greenhouse{background:linear-gradient(180deg,#E3EDD9,#C9DFC0 85%);}
+  .stage-wrap.scene-greenhouse{background-image:url(img/scene-greenhouse.webp);}
   .stage-wrap.scene-balcony{background-image:url(img/scene-balcony.webp);}
   .stage-wrap.scene-windowsill{background-image:url(img/scene-windowsill.webp);}
-  html[data-theme="dark"] .stage-wrap.scene-greenhouse{background:linear-gradient(180deg,#2E3A28,#243422 85%);}
   .pet-phrase{
     margin-top:6px;
     font-size:12.5px;
