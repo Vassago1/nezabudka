@@ -221,29 +221,49 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     void petVisualEl.offsetWidth;
     petVisualEl.classList.add("pet-appear");
   }
+  // Resolves once petStageImg's *current* src has actually decoded, so
+  // callers can hold the opacity/scale fade-in until there's real pixel
+  // data to fade in. Without this gate, starting the animation right after
+  // setting .src races the browser's own image decode - invisible for the
+  // small illustration-style photos (a few dozen KB, decodes in a frame or
+  // two) but visible as a partially-painted, partially-transparent frame
+  // for a much larger/heavier photo (e.g. the seal's, 3-10x the bytes of
+  // its siblings) on a slower device or network. decode() targets whatever
+  // src is current at call time, so calling it right after the assignment
+  // below is safe even though decode is async.
+  function waitForPetImageReady(hasPhoto){
+    if(!hasPhoto || !petStageImg.decode) return Promise.resolve();
+    return petStageImg.decode().catch(() => {});
+  }
   // Plays when the active companion species changes (Settings/Collection) -
   // fades the old picture out first, then swaps in the new content and
   // fades it in, rather than a hard cut. `applyVisuals` is whatever
   // actually swaps the shape/photo - called after the fade-out finishes.
-  function playPetSwapAnimation(applyVisuals){
+  // `hasPhoto`/`onAppearStart` let the caller gate the fade-in on image
+  // decode (see waitForPetImageReady) and still time the breathing loop
+  // off of whenever the fade-in actually starts, not a fixed guess.
+  function playPetSwapAnimation(applyVisuals, hasPhoto, onAppearStart){
     petVisualEl.classList.remove("pet-appear");
     void petVisualEl.offsetWidth;
     petVisualEl.classList.add("pet-fade-out");
     setTimeout(() => {
       petVisualEl.classList.remove("pet-fade-out");
       applyVisuals();
-      void petVisualEl.offsetWidth;
-      petVisualEl.classList.add("pet-appear");
+      waitForPetImageReady(hasPhoto).then(() => {
+        void petVisualEl.offsetWidth;
+        petVisualEl.classList.add("pet-appear");
+        if(onAppearStart) onAppearStart();
+      });
     }, 180);
   }
 
-  // Durations must match the CSS (.pet-fade-out / .pet-appear above) -
-  // used to time the idle "breathing" loop so it only ever engages once
-  // whichever appear/swap animation is currently playing has actually
-  // finished, never layered on top of it (that's the jump/jolt the spec
-  // explicitly asked to avoid).
+  // Must match the CSS .pet-appear duration above - used to time the idle
+  // "breathing" loop so it only ever engages once the appear/swap fade-in
+  // that's currently playing has actually finished, never layered on top
+  // of it (that's the jump/jolt the spec explicitly asked to avoid). Both
+  // callers start counting from whenever the fade-in actually begins
+  // (after waitForPetImageReady resolves), not from a fixed guess.
   const PET_APPEAR_MS = 450;
-  const PET_SWAP_MS = 180 + 450;
   const BREATHING_STATES = ["bloom", "normal"];
   let breathingDelayTimer = null;
 
@@ -1267,14 +1287,16 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       }
     }
 
+    const hasPhoto = !!PHOTO_STATE_FILES[data.activeSpeciesId];
     if(speciesChanged){
-      playPetSwapAnimation(applyPetVisuals);
-      updateBreathing(state, PET_SWAP_MS);
+      playPetSwapAnimation(applyPetVisuals, hasPhoto, () => updateBreathing(state, PET_APPEAR_MS));
     }else{
       applyPetVisuals();
       if(isFirstRender){
-        playPetAppearAnimation();
-        updateBreathing(state, PET_APPEAR_MS);
+        waitForPetImageReady(hasPhoto).then(() => {
+          playPetAppearAnimation();
+          updateBreathing(state, PET_APPEAR_MS);
+        });
       }else{
         updateBreathing(state, 0);
       }
