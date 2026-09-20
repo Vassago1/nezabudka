@@ -222,6 +222,39 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       petVisualEl.classList.add("pet-appear");
     }, 180);
   }
+
+  // Durations must match the CSS (.pet-fade-out / .pet-appear above) -
+  // used to time the idle "breathing" loop so it only ever engages once
+  // whichever appear/swap animation is currently playing has actually
+  // finished, never layered on top of it (that's the jump/jolt the spec
+  // explicitly asked to avoid).
+  const PET_APPEAR_MS = 450;
+  const PET_SWAP_MS = 180 + 450;
+  const BREATHING_STATES = ["bloom", "normal"];
+  let breathingDelayTimer = null;
+
+  // state: current health state ("bloom"/"normal"/"wilt"/"wilt-severe").
+  // delayMs: 0 to apply immediately (routine re-render, nothing is
+  // animating in), or the ms to wait for an in-flight appear/swap to
+  // finish first. Only bloom/normal breathe - same idea as leaves holding
+  // still while wilting, just expressed as a single shared class instead
+  // of per-species CSS.
+  function updateBreathing(state, delayMs){
+    clearTimeout(breathingDelayTimer);
+    const shouldBreathe = BREATHING_STATES.indexOf(state) !== -1;
+    if(!shouldBreathe){
+      petBreatheEl.classList.remove("breathing-active");
+      return;
+    }
+    if(delayMs > 0){
+      petBreatheEl.classList.remove("breathing-active");
+      breathingDelayTimer = setTimeout(() => {
+        petBreatheEl.classList.add("breathing-active");
+      }, delayMs);
+    }else{
+      petBreatheEl.classList.add("breathing-active");
+    }
+  }
   let data = null; // cached full state from the server
   let pollTimer = null;
 
@@ -1077,6 +1110,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const plantStage = document.getElementById("plantStage");
   const petStageImg = document.getElementById("petStageImg");
   const petVisualEl = document.getElementById("petVisual");
+  const petBreatheEl = document.getElementById("petBreathe");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -1221,9 +1255,15 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
     if(speciesChanged){
       playPetSwapAnimation(applyPetVisuals);
+      updateBreathing(state, PET_SWAP_MS);
     }else{
       applyPetVisuals();
-      if(isFirstRender) playPetAppearAnimation();
+      if(isFirstRender){
+        playPetAppearAnimation();
+        updateBreathing(state, PET_APPEAR_MS);
+      }else{
+        updateBreathing(state, 0);
+      }
     }
 
     pointsValueTopEl.textContent = String(data.points);

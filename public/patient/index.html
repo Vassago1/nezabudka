@@ -155,6 +155,33 @@
   .pet-appear{
     animation:petFadeIn .45s cubic-bezier(.22,1,.36,1) forwards;
   }
+  /* Idle "breathing" loop - one shared element under #petVisual, so it
+     applies the same way to every species (SVG rig or photo) without
+     per-species code, and its own `animation` never collides with
+     #petVisual's appear/fade-out or #plantStage's improve-glow (each of
+     the three lives on its own element - see the comment on .pet-visual
+     above). Always-on animation-name, gated purely by
+     animation-play-state via .breathing-active (JS decides when: only
+     bloom/normal, and only once any appear/swap animation has finished -
+     see updateBreathing in the script), so toggling it never restarts or
+     jumps the cycle. transform-origin at the bottom keeps the "feet"
+     planted - only the top rises/falls, like a chest breathing. Only
+     transform, still nothing heavier. */
+  .pet-breathe{
+    width:100%;
+    max-width:150px;
+    margin:0 auto;
+    transform-origin:50% 100%;
+    animation:petBreathe 3.6s ease-in-out infinite;
+    animation-play-state:paused;
+  }
+  .pet-breathe.breathing-active{
+    animation-play-state:running;
+  }
+  @keyframes petBreathe{
+    0%, 100%{transform:translateY(0) scaleY(1);}
+    50%{transform:translateY(-2.5px) scaleY(1.015);}
+  }
   #plantStage{
     width:100%;
     max-width:150px;
@@ -1481,6 +1508,7 @@
         <div class="pet-name" id="petNameDisplay">Незабудка</div>
         <div class="stage-wrap" id="stageWrap">
         <div class="pet-visual" id="petVisual">
+        <div class="pet-breathe" id="petBreathe">
         <svg id="plantStage" viewBox="0 0 240 340" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="leafGrad" x1="0" y1="0" x2="1" y2="1">
@@ -1968,6 +1996,7 @@
           </g>
         </svg>
         <img id="petStageImg" class="stage-photo" alt="" src="img/cat-great.webp">
+        </div>
         </div>
         </div>
 
@@ -2542,6 +2571,39 @@
       petVisualEl.classList.add("pet-appear");
     }, 180);
   }
+
+  // Durations must match the CSS (.pet-fade-out / .pet-appear above) -
+  // used to time the idle "breathing" loop so it only ever engages once
+  // whichever appear/swap animation is currently playing has actually
+  // finished, never layered on top of it (that's the jump/jolt the spec
+  // explicitly asked to avoid).
+  const PET_APPEAR_MS = 450;
+  const PET_SWAP_MS = 180 + 450;
+  const BREATHING_STATES = ["bloom", "normal"];
+  let breathingDelayTimer = null;
+
+  // state: current health state ("bloom"/"normal"/"wilt"/"wilt-severe").
+  // delayMs: 0 to apply immediately (routine re-render, nothing is
+  // animating in), or the ms to wait for an in-flight appear/swap to
+  // finish first. Only bloom/normal breathe - same idea as leaves holding
+  // still while wilting, just expressed as a single shared class instead
+  // of per-species CSS.
+  function updateBreathing(state, delayMs){
+    clearTimeout(breathingDelayTimer);
+    const shouldBreathe = BREATHING_STATES.indexOf(state) !== -1;
+    if(!shouldBreathe){
+      petBreatheEl.classList.remove("breathing-active");
+      return;
+    }
+    if(delayMs > 0){
+      petBreatheEl.classList.remove("breathing-active");
+      breathingDelayTimer = setTimeout(() => {
+        petBreatheEl.classList.add("breathing-active");
+      }, delayMs);
+    }else{
+      petBreatheEl.classList.add("breathing-active");
+    }
+  }
   let data = null; // cached full state from the server
   let pollTimer = null;
 
@@ -3058,6 +3120,7 @@
   const plantStage = document.getElementById("plantStage");
   const petStageImg = document.getElementById("petStageImg");
   const petVisualEl = document.getElementById("petVisual");
+  const petBreatheEl = document.getElementById("petBreathe");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -3202,9 +3265,15 @@
 
     if(speciesChanged){
       playPetSwapAnimation(applyPetVisuals);
+      updateBreathing(state, PET_SWAP_MS);
     }else{
       applyPetVisuals();
-      if(isFirstRender) playPetAppearAnimation();
+      if(isFirstRender){
+        playPetAppearAnimation();
+        updateBreathing(state, PET_APPEAR_MS);
+      }else{
+        updateBreathing(state, 0);
+      }
     }
 
     pointsValueTopEl.textContent = String(data.points);

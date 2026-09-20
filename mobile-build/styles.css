@@ -148,6 +148,33 @@
   .pet-appear{
     animation:petFadeIn .45s cubic-bezier(.22,1,.36,1) forwards;
   }
+  /* Idle "breathing" loop - one shared element under #petVisual, so it
+     applies the same way to every species (SVG rig or photo) without
+     per-species code, and its own `animation` never collides with
+     #petVisual's appear/fade-out or #plantStage's improve-glow (each of
+     the three lives on its own element - see the comment on .pet-visual
+     above). Always-on animation-name, gated purely by
+     animation-play-state via .breathing-active (JS decides when: only
+     bloom/normal, and only once any appear/swap animation has finished -
+     see updateBreathing in the script), so toggling it never restarts or
+     jumps the cycle. transform-origin at the bottom keeps the "feet"
+     planted - only the top rises/falls, like a chest breathing. Only
+     transform, still nothing heavier. */
+  .pet-breathe{
+    width:100%;
+    max-width:150px;
+    margin:0 auto;
+    transform-origin:50% 100%;
+    animation:petBreathe 3.6s ease-in-out infinite;
+    animation-play-state:paused;
+  }
+  .pet-breathe.breathing-active{
+    animation-play-state:running;
+  }
+  @keyframes petBreathe{
+    0%, 100%{transform:translateY(0) scaleY(1);}
+    50%{transform:translateY(-2.5px) scaleY(1.015);}
+  }
   #plantStage{
     width:100%;
     max-width:150px;
