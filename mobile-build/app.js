@@ -615,6 +615,45 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   const TASK_REMINDER_ACTION_TYPE = "TASK_REMINDER";
 
+  // Two Android notification channels, sound-on vs sound-off, so the
+  // existing "Звук" setting can actually mute reminders - Android only
+  // lets an app pick a channel's sound at channel *creation* time, not per
+  // notification or after the fact, so "toggle sound" has to mean "route
+  // through the other channel" rather than a per-notification flag.
+  // LOW importance is the one Android importance level guaranteed silent;
+  // HIGH gives the sound-on channel a heads-up popup too, which suits a
+  // medication reminder with actionable Done/Snooze buttons.
+  const NOTIF_CHANNEL_SOUND = "reminders";
+  const NOTIF_CHANNEL_SILENT = "reminders_silent";
+  let notificationChannelsReady = false;
+
+  async function ensureNotificationChannels(){
+    if(!notificationsAvailable || notificationChannelsReady) return;
+    try{
+      await LocalNotifications.createChannel({
+        id: NOTIF_CHANNEL_SOUND,
+        name: "Напоминания (со звуком)",
+        description: "Напоминания о задачах и повторные напоминания при задержке",
+        importance: 4,
+        visibility: 1,
+        vibration: true
+      });
+      await LocalNotifications.createChannel({
+        id: NOTIF_CHANNEL_SILENT,
+        name: "Напоминания (без звука)",
+        description: "То же самое, но без звука - для тех, кто выключил звук в настройках",
+        importance: 2,
+        visibility: 1,
+        vibration: false
+      });
+      notificationChannelsReady = true;
+    }catch(e){}
+  }
+
+  function currentNotificationChannelId(){
+    return getData().soundEnabled === false ? NOTIF_CHANNEL_SILENT : NOTIF_CHANNEL_SOUND;
+  }
+
   // How long after a timed task's due time to send a second, separate
   // reminder if it's still not marked done.
   const LATE_REMINDER_DELAY_MS = 10 * 60 * 1000;
@@ -673,6 +712,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }catch(e){
       notificationPermissionGranted = false;
     }
+    if(notificationPermissionGranted) await ensureNotificationChannels();
     return notificationPermissionGranted;
   }
 
@@ -690,12 +730,14 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(plan.length > 0){
       const companionName = getData().companionName || "Незабудка";
       const body = companionName + " напоминает: " + task.name;
+      const channelId = currentNotificationChannelId();
       const notifications = plan.map(p => {
         const base = {
           id: notifSlotId(task.id, p.slot),
           title: companionName,
           body,
           actionTypeId: TASK_REMINDER_ACTION_TYPE,
+          channelId,
           extra: { taskId: task.id }
         };
         if(p.at) return { ...base, schedule: { at: p.at, allowWhileIdle: true } };
@@ -751,6 +793,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
         title: (currentData.companionName || "Незабудка") + " напоминает",
         body: message,
         actionTypeId: TASK_REMINDER_ACTION_TYPE,
+        channelId: currentNotificationChannelId(),
         extra: { taskId: task.id, late: true },
         schedule: { at: lateAt, allowWhileIdle: true }
       }] });
@@ -761,6 +804,19 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     if(!notificationsAvailable || !notificationPermissionGranted) return;
     for(const task of getData().tasks){
       await ensureLateReminder(task);
+    }
+  }
+
+  // Unconditional reschedule of every task's notifications - unlike
+  // reconcileAllNotifications, which only re-schedules when the set of
+  // pending ids has actually diverged. Toggling the sound setting doesn't
+  // change which ids are scheduled, only which channel they should be on,
+  // so that shortcut would otherwise skip moving already-pending
+  // notifications to the new channel.
+  async function rescheduleAllNotificationsForChannelChange(){
+    if(!notificationsAvailable || !notificationPermissionGranted) return;
+    for(const task of getData().tasks){
+      await scheduleTaskNotifications(task);
     }
   }
 
@@ -804,6 +860,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
           title: title || "Незабудка",
           body: body || "Напоминание",
           actionTypeId: TASK_REMINDER_ACTION_TYPE,
+          channelId: currentNotificationChannelId(),
           extra: { taskId },
           schedule: { at: new Date(Date.now() + 10 * 60 * 1000), allowWhileIdle: true }
         }]
@@ -1807,7 +1864,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
         const status = await LocalNotifications.checkPermissions();
         const wasGranted = notificationPermissionGranted;
         notificationPermissionGranted = status.display === "granted";
-        if(notificationPermissionGranted && !wasGranted) reconcileAllNotifications();
+        if(notificationPermissionGranted && !wasGranted){
+          await ensureNotificationChannels();
+          reconcileAllNotifications();
+        }
       }catch(e){}
       notificationsDisabledHintEl.classList.toggle("hidden", notificationPermissionGranted);
     }else{
@@ -1837,6 +1897,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   soundToggle.addEventListener("change", async () => {
     data = await apiCall("PATCH", "/api/patients/" + data.id, { soundEnabled: soundToggle.checked });
+    // Move already-scheduled reminders onto the matching sound/silent
+    // channel right away, instead of waiting for the next natural
+    // reschedule (task edit, markDone, the poll loop).
+    await rescheduleAllNotificationsForChannelChange();
   });
 
   exportDataBtn.addEventListener("click", () => {
