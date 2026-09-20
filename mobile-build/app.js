@@ -198,6 +198,30 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
 
   let lastCompletedId = null;
   let lastHealthState = null; // for the "state got better" glow, see maybeShowImprovement()
+  let lastRenderedSpeciesId = null; // for the pet appear/swap animation, see renderPetScreen()
+
+  // Plays once, on the very first paint of the pet screen (page load /
+  // boot) - a gentle fade+scale-in instead of the pet just popping in.
+  function playPetAppearAnimation(){
+    petVisualEl.classList.remove("pet-appear");
+    void petVisualEl.offsetWidth;
+    petVisualEl.classList.add("pet-appear");
+  }
+  // Plays when the active companion species changes (Settings/Collection) -
+  // fades the old picture out first, then swaps in the new content and
+  // fades it in, rather than a hard cut. `applyVisuals` is whatever
+  // actually swaps the shape/photo - called after the fade-out finishes.
+  function playPetSwapAnimation(applyVisuals){
+    petVisualEl.classList.remove("pet-appear");
+    void petVisualEl.offsetWidth;
+    petVisualEl.classList.add("pet-fade-out");
+    setTimeout(() => {
+      petVisualEl.classList.remove("pet-fade-out");
+      applyVisuals();
+      void petVisualEl.offsetWidth;
+      petVisualEl.classList.add("pet-appear");
+    }, 180);
+  }
   let data = null; // cached full state from the server
   let pollTimer = null;
 
@@ -1052,6 +1076,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   // ---------- rendering: pet screen ----------
   const plantStage = document.getElementById("plantStage");
   const petStageImg = document.getElementById("petStageImg");
+  const petVisualEl = document.getElementById("petVisual");
   const petStatus = document.getElementById("petStatus");
   const petCaption = document.getElementById("petCaption");
   const moodIcon = document.getElementById("moodIcon");
@@ -1162,28 +1187,44 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     const state = healthState(pct);
     const info = stateInfoFor(state, speciesInfo(data.activeSpeciesId).kind);
 
+    // First-ever paint gets a plain fade+scale in; switching companion
+    // species gets a fade-out-then-in crossfade (see playPetSwapAnimation).
+    // A state change within the same species (e.g. wilt -> bloom) does
+    // neither - that's maybeShowImprovement's glow, left alone below.
+    const isFirstRender = lastRenderedSpeciesId === null;
+    const speciesChanged = !isFirstRender && lastRenderedSpeciesId !== data.activeSpeciesId;
+    lastRenderedSpeciesId = data.activeSpeciesId;
+
     petNameDisplayEl.textContent = data.companionName || "Незабудка";
-
-    plantStage.classList.remove("state-bloom","state-normal","state-wilt","state-wilt-severe");
-    plantStage.classList.add("state-"+state);
-    maybeShowImprovement(state);
-
     petStatus.textContent = info.label;
     petCaption.textContent = info.caption;
     petPhraseEl.textContent = supportivePhrase(pct);
+    moodIcon.textContent = info.icon;
+    moodLabel.textContent = info.label;
 
-    applySpeciesTheme(data.activeSpeciesId);
     applyScene(data.activeSceneId);
     checkNewAchievements(data);
 
-    const photoStates = PHOTO_STATE_FILES[data.activeSpeciesId];
-    if(photoStates){
-      petStageImg.src = photoStates[state];
-      petStageImg.alt = info.label;
+    function applyPetVisuals(){
+      plantStage.classList.remove("state-bloom","state-normal","state-wilt","state-wilt-severe");
+      plantStage.classList.add("state-"+state);
+      maybeShowImprovement(state);
+
+      applySpeciesTheme(data.activeSpeciesId);
+
+      const photoStates = PHOTO_STATE_FILES[data.activeSpeciesId];
+      if(photoStates){
+        petStageImg.src = photoStates[state];
+        petStageImg.alt = info.label;
+      }
     }
 
-    moodIcon.textContent = info.icon;
-    moodLabel.textContent = info.label;
+    if(speciesChanged){
+      playPetSwapAnimation(applyPetVisuals);
+    }else{
+      applyPetVisuals();
+      if(isFirstRender) playPetAppearAnimation();
+    }
 
     pointsValueTopEl.textContent = String(data.points);
 
