@@ -2571,6 +2571,23 @@
   let lastHealthState = null; // for the "state got better" glow, see maybeShowImprovement()
   let lastRenderedSpeciesId = null; // for the pet appear/swap animation, see renderPetScreen()
 
+  // maybeShowImprovement/showCourseMilestoneReaction below animate the pet
+  // card - but renderAll() (and so these) can run while a totally
+  // different tab is showing (e.g. marking a task done on the Дела
+  // screen), and the pet screen is `.screen{display:none}` then (see
+  // .screen.active below). Anchoring to any element inside a display:none
+  // ancestor gives getBoundingClientRect() an all-zero rect - the same
+  // failure mode as plantStage's own rect going to zero when
+  // .photo-active hides it - so there's nowhere sensible to place the
+  // sparks. Queue the celebration and replay it once the user actually
+  // switches to the pet screen instead; a later one simply replaces an
+  // unplayed earlier one rather than stacking several at once.
+  let pendingPetCelebration = null;
+  function playOrQueuePetCelebration(fn){
+    if(screens.pet.classList.contains("active")) fn();
+    else pendingPetCelebration = fn;
+  }
+
   // Plays once, on the very first paint of the pet screen (page load /
   // boot) - a gentle fade+scale-in instead of the pet just popping in.
   function playPetAppearAnimation(){
@@ -3401,13 +3418,24 @@
     if(prev === null || prev === newState) return;
     if(HEALTH_STATE_ORDER.indexOf(newState) <= HEALTH_STATE_ORDER.indexOf(prev)) return;
 
-    plantStage.classList.remove("improve-glow");
-    void plantStage.offsetWidth;
-    plantStage.classList.add("improve-glow");
-    setTimeout(() => plantStage.classList.remove("improve-glow"), 1700);
+    playOrQueuePetCelebration(() => {
+      plantStage.classList.remove("improve-glow");
+      void plantStage.offsetWidth;
+      plantStage.classList.add("improve-glow");
+      setTimeout(() => plantStage.classList.remove("improve-glow"), 1700);
 
-    [-18, 0, 20].forEach((dx, i) => {
-      setTimeout(() => spawnFloatText(plantStage, "✨", "float-spark", dx), i * 160);
+      // Anchored to petVisualEl (the shared wrapper), not plantStage - the
+      // SVG rig is display:none for any photo-based species (see
+      // #plantStage.photo-active above), and a hidden element's
+      // getBoundingClientRect() is all zeros, which sent these sparks
+      // flying to the top-left corner of the viewport instead of near
+      // the pet. petVisualEl always has real, correctly-sized layout in
+      // both modes - and by the time this actually runs (see
+      // playOrQueuePetCelebration above), the pet screen is guaranteed
+      // to be the visible one.
+      [-18, 0, 20].forEach((dx, i) => {
+        setTimeout(() => spawnFloatText(petVisualEl, "✨", "float-spark", dx), i * 160);
+      });
     });
   }
 
@@ -3792,8 +3820,12 @@
   // when this fires: 25/50/75% marks for 15-30 day courses, once a week for
   // longer ones.
   function showCourseMilestoneReaction(task, milestone){
-    [-16, 8].forEach((dx, i) => {
-      setTimeout(() => spawnFloatText(plantStage, "⭐", "float-spark", dx), i * 150);
+    // Same queue-if-hidden fix as maybeShowImprovement above - the toast
+    // below is independent of the pet screen and always fires right away.
+    playOrQueuePetCelebration(() => {
+      [-16, 8].forEach((dx, i) => {
+        setTimeout(() => spawnFloatText(petVisualEl, "⭐", "float-spark", dx), i * 150);
+      });
     });
     const label = milestone.type === "week"
       ? "Неделя " + milestone.week + " курса «" + task.name + "» позади"
@@ -3833,6 +3865,11 @@
   function activateTab(tabKey){
     tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === tabKey));
     Object.keys(screens).forEach(key => screens[key].classList.toggle("active", key === tabKey));
+    if(tabKey === "pet" && pendingPetCelebration){
+      const fn = pendingPetCelebration;
+      pendingPetCelebration = null;
+      fn();
+    }
   }
   tabs.forEach(btn => {
     btn.addEventListener("click", () => activateTab(btn.dataset.tab));
