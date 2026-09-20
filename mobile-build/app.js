@@ -1174,6 +1174,98 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const petNameDisplayEl = document.getElementById("petNameDisplay");
   const petPhraseEl = document.getElementById("petPhrase");
   const stageWrapEl = document.getElementById("stageWrap");
+  const petSpeechBubbleEl = document.getElementById("petSpeechBubble");
+
+  // ---------- pet speech bubble: a short line of praise after marking a
+  // task done (see markDone). Regular pool for an ordinary completion;
+  // the three special-moment lines below take over instead of the pool
+  // when they apply, reusing the same course/streak/achievement signals
+  // the rest of the app already computes - see the priority order in
+  // showTaskPraise.
+  const PRAISE_PHRASES = [
+    "Ты сделал это! {имя} гордится тобой.",
+    "Ещё одна маленькая победа сегодня.",
+    "Вот так, шаг за шагом — и всё получается.",
+    "Отлично! Именно так и держим ритм.",
+    "Забота о себе — это уже достижение.",
+    "{имя} чувствует себя чуточку лучше от этого.",
+    "Хороший выбор — не отложить на потом.",
+    "Просто и вовремя. Так и надо.",
+    "Маленькое дело, но оно имеет значение.",
+    "Спасибо, что не забыл про себя сегодня.",
+    "Вот это дисциплина! Приятно смотреть.",
+    "Один пункт меньше — и на душе спокойнее.",
+    "Ты держишь слово перед самим собой.",
+    "{имя} рад, что ты рядом и не сдаёшься.",
+    "Так и появляются хорошие привычки — по одной."
+  ];
+  const ROUND_STREAK_DAYS = [3, 7, 14, 30];
+  let lastPraisePhraseIdx = -1;
+  function pickPraisePhrase(){
+    if(PRAISE_PHRASES.length <= 1) return PRAISE_PHRASES[0];
+    let idx;
+    do{ idx = Math.floor(Math.random() * PRAISE_PHRASES.length); }while(idx === lastPraisePhraseIdx);
+    lastPraisePhraseIdx = idx;
+    return PRAISE_PHRASES[idx];
+  }
+  function fillPraiseName(text){
+    return text.replace(/\{имя\}/g, data.companionName || "Незабудка");
+  }
+
+  // Queued the same way as playOrQueuePetCelebration above (and for the
+  // same reason - completing a task from the Дела tab means the pet
+  // screen is display:none right now), but kept as its own slot so a
+  // pending sparkle celebration and a pending bubble never clobber each
+  // other. A later bubble replaces an unshown earlier one rather than
+  // queuing both - see activateTab for where it's replayed.
+  let pendingPetBubble = null;
+  let petBubbleHideTimer = null, petBubbleClearTimer = null;
+  function playPetBubble(text){
+    clearTimeout(petBubbleHideTimer);
+    clearTimeout(petBubbleClearTimer);
+    petSpeechBubbleEl.textContent = text;
+    petSpeechBubbleEl.classList.remove("bubble-out");
+    void petSpeechBubbleEl.offsetWidth;
+    petSpeechBubbleEl.classList.add("bubble-in");
+    petBubbleHideTimer = setTimeout(() => {
+      petSpeechBubbleEl.classList.remove("bubble-in");
+      petSpeechBubbleEl.classList.add("bubble-out");
+      petBubbleClearTimer = setTimeout(() => {
+        petSpeechBubbleEl.classList.remove("bubble-out");
+        petSpeechBubbleEl.textContent = "";
+      }, 300);
+    }, 2800);
+  }
+  function queuePetBubble(text){
+    if(screens.pet.classList.contains("active")){
+      playPetBubble(text);
+    }else{
+      pendingPetBubble = text;
+    }
+  }
+  // Called from markDone right after a genuinely new completion lands -
+  // picks the special course/streak/achievement line when one applies,
+  // else a random line from the regular pool (never the same one twice
+  // in a row). streakBefore/achievementIdsBefore are snapshots taken at
+  // the very top of markDone, before that completion changed anything.
+  function showTaskPraise({ justFinished, streakBefore, achievementIdsBefore }){
+    let text;
+    if(justFinished){
+      text = "Ты прошёл весь путь до конца — это действительно серьёзный результат.";
+    }else{
+      const streakAfter = computeStreak(data);
+      const achievementIdsAfter = (data.achievements || []).map(a => a.id);
+      const newAchievementIds = achievementIdsAfter.filter(id => achievementIdsBefore.indexOf(id) === -1);
+      if(ROUND_STREAK_DAYS.indexOf(streakAfter) !== -1 && streakAfter !== streakBefore){
+        text = fillPraiseName("Столько дней подряд — {имя} в полном восторге от тебя.");
+      }else if(newAchievementIds.length > 0){
+        text = "Ты заслужил ещё одну победу — посмотри, что открылось.";
+      }else{
+        text = fillPraiseName(pickPraisePhrase());
+      }
+    }
+    queuePetBubble(text);
+  }
 
   function speciesInfo(id){
     return SPECIES_CATALOG.find(s => s.id === id) || SPECIES_CATALOG[0];
@@ -1752,6 +1844,11 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     const today = currentDateStr(data);
     const task = data.tasks.find(t => t.id === taskId);
     const wasAlreadyDone = task ? isDoneOn(task, today) : false;
+    // Snapshot before anything below mutates data, so showTaskPraise can
+    // tell whether THIS completion is what pushed the streak to a round
+    // number or unlocked a new achievement.
+    const streakBefore = computeStreak(data);
+    const achievementIdsBefore = (data.achievements || []).map(a => a.id);
     if(task && !wasAlreadyDone){
       // Reflect the tap immediately regardless of connectivity - reconciled
       // against the server's real response below, or queued for retry if
@@ -1807,6 +1904,7 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }else if(courseMilestone){
       if(doneTask) showCourseMilestoneReaction(doneTask, courseMilestone);
     }
+    showTaskPraise({ justFinished, streakBefore, achievementIdsBefore });
   }
 
   // A smaller beat than the full course-finished celebration - a mid-course
@@ -1860,10 +1958,17 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   function activateTab(tabKey){
     tabs.forEach(b => b.classList.toggle("active", b.dataset.tab === tabKey));
     Object.keys(screens).forEach(key => screens[key].classList.toggle("active", key === tabKey));
-    if(tabKey === "pet" && pendingPetCelebration){
-      const fn = pendingPetCelebration;
-      pendingPetCelebration = null;
-      fn();
+    if(tabKey === "pet"){
+      if(pendingPetCelebration){
+        const fn = pendingPetCelebration;
+        pendingPetCelebration = null;
+        fn();
+      }
+      if(pendingPetBubble){
+        const text = pendingPetBubble;
+        pendingPetBubble = null;
+        playPetBubble(text);
+      }
     }
   }
   tabs.forEach(btn => {
