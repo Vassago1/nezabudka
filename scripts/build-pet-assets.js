@@ -80,8 +80,10 @@ const BBOX_PADDING = 24;    // extra px kept around the subject's largest compon
 const CONTAMINATED_CORNER_MAX_DEV = 20; // a corner patch this internally inconsistent contains part of the subject, not flat background
 const EDGE_BAND = 6;        // px; how far from the real silhouette the soft feather is allowed to reach
 const SHADOW_BAND_FRACTION = 0.25; // bottom fraction of the subject's own height searched for the contact shadow's flare
-const SHADOW_MAX_GROWTH_PER_ROW = 18; // px/row the silhouette is allowed to widen naturally (a flipper or paw flaring out); more than this, in one row, is the shadow starting
-const SHADOW_WING_MARGIN = 15; // px of slack added around the last legitimate width before anything wider counts as shadow, not pet
+const SHADOW_MAX_GROWTH_PER_ROW = 18; // px/row the silhouette is allowed to widen naturally (a flipper or paw flaring out); more than this, in one row, is a shadow starting abruptly
+const SHADOW_CORE_DIST = 150; // color distance from local bg above which a pixel is confidently real material, not a fading shadow/ambient-occlusion halo
+const SHADOW_CORE_MIN_PLAUSIBLE_RATIO = 0.5; // a row's core span narrower than this fraction of the running reference is treated as a fluke, not a real narrowing
+const SHADOW_WING_MARGIN = 20; // px of slack added around each row's own confident-material span before anything past it counts as shadow, not pet
 
 const PETS = {
   cat: { good: 'cat-good.avif', great: 'cat-great.jpg', low: 'cat-low.avif', verylow: 'cat-verylow.avif' },
@@ -257,29 +259,33 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
   // opaque light patch under the pet instead of fading into whatever scene
   // the app composites it over.
   //
-  // Color and texture turned out not to reliably tell a shadow apart from
-  // the pet: the shadow blends into the belly's own ambient-occlusion
-  // shading as one continuous smooth gradient, with no clean boundary in
-  // either color distance or local variance (tried both - a threshold loose
-  // enough to catch the shadow also ate a hole in the belly between the
-  // feet, because that patch is just as smooth and just as pale). What IS
-  // reliable is geometry: real anatomy (a flipper flaring out, a paw
-  // planting) widens the silhouette gradually, a few px per row; the
-  // shadow's flare starts as an abrupt jump instead. Walking down the
-  // bottom band row by row and only ever letting the "allowed" span grow by
-  // SHADOW_MAX_GROWTH_PER_ROW tracks a flaring flipper just fine, then
-  // freezes the moment a row jumps past that rate - which is where the
-  // shadow starts - and clips every row from there down to that frozen
-  // span. A row can still narrow immediately (tracking the body shrinking
-  // back in), just not widen fast.
+  // Two different shadow shapes show up, and only one signal is safe for
+  // each. Some shadows start with an abrupt step (the seal's paw plants on
+  // a floor, then the shadow flares hard) - geometry alone catches that:
+  // real anatomy widens a silhouette by a few px per row, so a jump bigger
+  // than SHADOW_MAX_GROWTH_PER_ROW in a single row is the shadow starting,
+  // not the pet. That check is tried first, on trueSubject's full width -
+  // no color reasoning involved, so it can't be fooled by a pale belly.
   //
-  // Not every shadow announces itself with a jump, though - a pot's base
-  // can fade into its own ambient-occlusion halo just as gradually as the
-  // growth-rate allows, and that case slips through this check with some
-  // residual haze left around the base. The CSS ground-shadow the app draws
-  // is deliberately sized to cover that residual too (see .pet-ground-
-  // shadow), so a case this check misses still ends up looking fine, just
-  // via the CSS layer instead of the cutout.
+  // Other shadows fade in gradually with no jump at all (a pot's base
+  // ambient-occlusion halo widening in lockstep with the pot's own taper) -
+  // the growth-rate check finds nothing to freeze on and leaves the row
+  // untouched. Only in that case - when tier one comes up empty for the
+  // whole band - does a second pass fall back to color: measure each row's
+  // width using only pixels confidently far from the background color
+  // (SHADOW_CORE_DIST), which a smooth low-contrast halo never reaches even
+  // as it widens. This pass is never applied to a subject the first pass
+  // already found a shadow-onset row in, because a pale subject (the
+  // seal's white belly) can have long stretches where even real fur
+  // doesn't clear SHADOW_CORE_DIST while a stray dark fleck (a whisker, a
+  // scarf thread) does, which is exactly the kind of subject the abrupt-
+  // jump case already covers correctly - re-running the color-based pass
+  // over it risks collapsing a row's width down to a sliver around that one
+  // fleck. A running reference span guards against that collapse even in
+  // the fallback case: a new row only replaces the reference when its own
+  // core is a plausible continuation (at least half the reference's
+  // width), so a single implausible sliver keeps trimming against the last
+  // good reference instead of erasing the row.
   let subjectMinY = height, subjectMaxY = -1;
   for (let i = 0; i < n; i++) {
     if (!trueSubject[i]) continue;
@@ -290,8 +296,10 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
   if (subjectMaxY >= 0) {
     const bandTop = subjectMaxY - Math.round((subjectMaxY - subjectMinY) * SHADOW_BAND_FRACTION);
 
+    // Tier 1: abrupt-jump detection on the full (non-color-filtered) width.
     let allowedMinX = null, allowedMaxX = null;
-    let frozen = false;
+    let jumpFrozen = false;
+    let freezeStartY = -1;
     for (let y = bandTop; y <= subjectMaxY; y++) {
       let minX = -1, maxX = -1;
       for (let x = 0; x < width; x++) {
@@ -301,26 +309,63 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
         }
       }
       if (minX === -1) continue;
-
-      if (!frozen) {
-        if (allowedMinX === null) {
+      if (jumpFrozen) continue;
+      if (allowedMinX === null) {
+        allowedMinX = minX;
+        allowedMaxX = maxX;
+      } else {
+        const growLeft = allowedMinX - minX;
+        const growRight = maxX - allowedMaxX;
+        if (growLeft > SHADOW_MAX_GROWTH_PER_ROW || growRight > SHADOW_MAX_GROWTH_PER_ROW) {
+          jumpFrozen = true;
+          freezeStartY = y;
+        } else {
           allowedMinX = minX;
           allowedMaxX = maxX;
-        } else {
-          const growLeft = allowedMinX - minX;
-          const growRight = maxX - allowedMaxX;
-          if (growLeft > SHADOW_MAX_GROWTH_PER_ROW || growRight > SHADOW_MAX_GROWTH_PER_ROW) {
-            frozen = true; // sudden widening - the shadow starts here, lock the span as of the previous row
-          } else {
-            allowedMinX = Math.min(allowedMinX, minX);
-            allowedMaxX = Math.max(allowedMaxX, maxX);
-          }
         }
       }
+    }
 
-      if (frozen && allowedMinX !== null) {
-        const safeMinX = allowedMinX - SHADOW_WING_MARGIN;
-        const safeMaxX = allowedMaxX + SHADOW_WING_MARGIN;
+    if (jumpFrozen) {
+      const safeMinX = allowedMinX - SHADOW_WING_MARGIN;
+      const safeMaxX = allowedMaxX + SHADOW_WING_MARGIN;
+      for (let y = freezeStartY; y <= subjectMaxY; y++) {
+        for (let x = 0; x < width; x++) {
+          if (x >= safeMinX && x <= safeMaxX) continue;
+          const i = y * width + x;
+          if (trueSubject[i]) { trueSubject[i] = 0; candidate[i] = 1; }
+        }
+      }
+    } else {
+      // Tier 2: no abrupt jump anywhere in the band - fall back to a
+      // color+geometry combination for a gradually fading halo instead.
+      let refMinX = null, refMaxX = null;
+      for (let y = bandTop; y <= subjectMaxY; y++) {
+        let minX = -1, maxX = -1;
+        for (let x = 0; x < width; x++) {
+          const i = y * width + x;
+          if (trueSubject[i] && dist[i] > SHADOW_CORE_DIST) {
+            if (minX === -1) minX = x;
+            maxX = x;
+          }
+        }
+
+        if (minX !== -1) {
+          const refWidth = refMinX === null ? -1 : refMaxX - refMinX;
+          const rowWidth = maxX - minX;
+          if (refMinX === null || rowWidth >= refWidth * SHADOW_CORE_MIN_PLAUSIBLE_RATIO) {
+            refMinX = minX;
+            refMaxX = maxX;
+          }
+          // else: an implausible sliver next to the established reference
+          // (likely a lone dark fleck on otherwise pale material) - keep
+          // the existing reference instead of snapping to it
+        }
+
+        if (refMinX === null) continue; // no plausible reference established yet this low - leave the row alone
+
+        const safeMinX = refMinX - SHADOW_WING_MARGIN;
+        const safeMaxX = refMaxX + SHADOW_WING_MARGIN;
         for (let x = 0; x < width; x++) {
           if (x >= safeMinX && x <= safeMaxX) continue;
           const i = y * width + x;
