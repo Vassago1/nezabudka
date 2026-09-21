@@ -8,7 +8,8 @@
     "start": "node server/index.js",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
-    "images:build": "node scripts/build-pet-assets.js"
+    "images:build": "node scripts/build-pet-assets.js",
+    "mobile:doctor": "node scripts/build-mobile-doctor.js"
   },
   "engines": {
     "node": ">=22.5.0"

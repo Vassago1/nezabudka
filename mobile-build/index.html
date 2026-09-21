@@ -786,6 +786,11 @@
       <div class="settings-hint">Скачивает снимок текущих данных с сервера в JSON.</div>
     </div>
 
+    <div class="settings-block">
+      <button type="button" class="btn-ghost" id="switchRoleBtn" style="width:100%;">Сменить роль</button>
+      <div class="settings-hint">Вернуться на экран выбора «пациент / врач». Ваши данные сохранятся.</div>
+    </div>
+
     <div class="reset-row">
       <button type="button" class="btn-text-muted" id="resetAllSettingsBtn">Сбросить всё (новый пациент)</button>
     </div>
@@ -916,6 +921,15 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="role.js"></script>
+<script>
+  // app.js owns Local Notifications + the time machine, so it only loads for the patient role.
+  (function(){
+    if(!NezabudkaRole.gate("patient")) return;
+    var s = document.createElement("script");
+    s.src = "app.js";
+    document.body.appendChild(s);
+  })();
+</script>
 </body>
 </html>

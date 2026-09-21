@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кто вы?</title>
+<style>
+  :root{ --bg:#F3EFE6; --card:#FFFFFF; --text:#3A362E; --muted:#8A8474; --accent:#5B8C5A; --border:#E4DED0; }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#20221D; --card:#2A2C24; --text:#EAE6D9; --muted:#A29C89; --accent:#8FBF8E; --border:#3A3C32; }
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+        font-family:-apple-system, "Segoe UI", Roboto, sans-serif;
+        display:flex; flex-direction:column; justify-content:center; padding:24px 16px; }
+  h1{ text-align:center; font-size:26px; margin:0 0 6px; }
+  p.sub{ text-align:center; color:var(--muted); margin:0 0 28px; font-size:15px; }
+  .cards{ display:flex; flex-direction:column; gap:14px; max-width:420px; width:100%; margin:0 auto; }
+  .role-card{ background:var(--card); border:2px solid var(--border); border-radius:20px; padding:22px 18px;
+              text-align:left; font:inherit; color:inherit; cursor:pointer; display:flex; align-items:center; gap:16px; }
+  .role-card:active{ border-color:var(--accent); transform:scale(.98); }
+  .role-icon{ font-size:40px; line-height:1; }
+  .role-title{ font-size:19px; font-weight:600; display:block; }
+  .role-desc{ font-size:13.5px; color:var(--muted); display:block; margin-top:3px; }
+</style>
+</head>
+<body>
+  <h1>Кто вы?</h1>
+  <p class="sub">Выберите, как вы будете пользоваться приложением</p>
+  <div class="cards">
+    <button type="button" class="role-card" id="rolePatient">
+      <span class="role-icon">🌱</span>
+      <span><span class="role-title">Я пациент</span><span class="role-desc">Мой компаньон, задачи и напоминания</span></span>
+    </button>
+    <button type="button" class="role-card" id="roleDoctor">
+      <span class="role-icon">👩‍⚕️</span>
+      <span><span class="role-title">Я врач</span><span class="role-desc">Панель врача: пациенты и назначения</span></span>
+    </button>
+  </div>
+<script src="role.js"></script>
+<script>
+  // Someone who already picked a role never sees this screen again (until "Сменить роль").
+  (function(){
+    var saved = NezabudkaRole.get();
+    if(saved){ location.replace(NezabudkaRole.pageFor(saved)); return; }
+    function choose(role){ NezabudkaRole.set(role); location.replace(NezabudkaRole.pageFor(role)); }
+    document.getElementById("rolePatient").addEventListener("click", function(){ choose("patient"); });
+    document.getElementById("roleDoctor").addEventListener("click", function(){ choose("doctor"); });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Панель врача</title>
+<style>
+  :root{
+    --bg:#F3EFE6;
+    --card:#FFFFFF;
+    --card-alt:#FBF8F1;
+    --text:#3A362E;
+    --text-muted:#8A8474;
+    --border:#E7E0D2;
+    --sage:#6E8B5D;
+    --sage-dark:#56724A;
+    --sage-soft:#DCE6D4;
+    --terracotta:#C98A5E;
+    --shadow:0 10px 30px rgba(58,54,46,0.08);
+  }
+  html[data-theme="dark"]{
+    --bg:#20221D;
+    --card:#2A2C24;
+    --card-alt:#25271F;
+    --text:#EAE6D9;
+    --text-muted:#A29C89;
+    --border:#3B3D33;
+    --sage:#7FA36B;
+    --sage-dark:#9CC086;
+    --sage-soft:#374A2F;
+    --terracotta:#D9A177;
+    --shadow:0 10px 30px rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:24px 16px 60px;
+  }
+  .app{
+    width:100%;
+    max-width:520px;
+    display:flex;
+    flex-direction:column;
+    min-height:calc(100vh - 84px);
+  }
+  header.topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:6px 4px 18px;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  header.topbar h1{
+    font-size:19px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:0.2px;
+  }
+  .mood-pill{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:var(--card);
+    border:1px solid var(--border);
+    padding:6px 12px;
+    border-radius:999px;
+    font-size:13px;
+    color:var(--text-muted);
+    box-shadow:var(--shadow);
+  }
+
+  main{flex:1;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+
+  .pet-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:20px 16px 26px;
+    box-shadow:var(--shadow);
+  }
+  .pet-name{
+    font-size:17px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .pet-status{
+    font-size:14.5px;
+    font-weight:600;
+    color:var(--sage-dark);
+    margin-bottom:6px;
+  }
+  .streak-line{
+    font-size:13px;
+    color:var(--sage-dark);
+    font-weight:500;
+  }
+  .week-summary-line{
+    margin-top:6px;
+    font-size:13px;
+    color:var(--text-muted);
+    line-height:1.5;
+  }
+
+  .history-block{margin-top:18px;}
+  .history-title{
+    font-size:12px;
+    color:var(--text-muted);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    margin-bottom:10px;
+  }
+  .history-grid{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+  }
+  .heat-cell{
+    width:22px;
+    height:22px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:9px;
+    color:rgba(58,54,46,0.45);
+    user-select:none;
+    cursor:pointer;
+  }
+  .heat-cell.selected{box-shadow:0 0 0 2px var(--sage);}
+  .heat-none{background:transparent; border:1px dashed var(--border); color:var(--text-muted);}
+  .heat-1{background:#E7E0D2;}
+  .heat-2{background:#C6D6B8;}
+  .heat-3{background:#9CBB86;}
+  .heat-4{background:var(--sage-dark); color:rgba(255,255,255,0.85);}
+  .history-hint{
+    margin-top:10px;
+    text-align:center;
+    font-size:12px;
+    color:var(--text-muted);
+  }
+
+  /* ---------- day breakdown: which specific tasks were due/done on a
+     clicked heatmap day, not just the count - same isDueOn/isDoneOn logic
+     the heatmap cells themselves already use. ---------- */
+  .day-breakdown{
+    margin-top:12px;
+    background:var(--card-alt);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 16px;
+  }
+  .day-breakdown-date{
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:10px;
+  }
+  .day-breakdown-empty{
+    font-size:13px;
+    color:var(--text-muted);
+  }
+  .day-breakdown-list{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .day-breakdown-item{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    font-size:13.5px;
+  }
+  .day-breakdown-mark{
+    flex-shrink:0;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    font-weight:700;
+    color:#fff;
+  }
+  .day-breakdown-mark.done{background:var(--sage);}
+  .day-breakdown-mark.missed{background:var(--terracotta);}
+
+  .section-heading{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .section-heading h2{
+    font-size:16px;
+    margin:0;
+    font-weight:600;
+  }
+  .add-btn{
+    border:1px solid var(--sage);
+    color:var(--sage-dark);
+    background:var(--card);
+    font-size:13px;
+    font-weight:500;
+    padding:7px 12px;
+    border-radius:10px;
+    cursor:pointer;
+  }
+  .add-btn:hover{background:var(--sage-soft);}
+
+  .add-form{
+    background:var(--card-alt);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:18px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .add-form.hidden{display:none;}
+  .add-form label{
+    font-size:12.5px;
+    color:var(--text-muted);
+    margin-bottom:3px;
+    display:block;
+  }
+  .add-form input,.add-form select,.add-form textarea{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--border);
+    border-radius:9px;
+    font-size:14px;
+    background:var(--card);
+    color:var(--text);
+    font-family:inherit;
+  }
+  .add-form textarea{resize:vertical;}
+  .form-actions{
+    display:flex;
+    gap:8px;
+    margin-top:4px;
+  }
+  .btn-primary{
+    background:var(--sage);
+    color:#fff;
+    border:none;
+    padding:10px 16px;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:500;
+    cursor:pointer;
+    flex:1;
+  }
+  .btn-primary:hover{background:var(--sage-dark);}
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    padding:10px 16px;
+    border-radius:10px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .hidden{display:none !important;}
+
+  .weekday-picker{display:flex; flex-wrap:wrap; gap:6px;}
+  .weekday-opt{
+    display:flex; align-items:center; gap:5px;
+    border:1px solid var(--border); background:var(--card);
+    padding:6px 9px; border-radius:9px; font-size:12.5px; color:var(--text); cursor:pointer;
+  }
+  .weekday-opt input{margin:0; cursor:pointer;}
+
+  .edit-mode-tag{
+    font-size:12px;
+    font-weight:600;
+    color:var(--sage-dark);
+    text-transform:uppercase;
+    letter-spacing:.4px;
+  }
+
+  .task-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin:0 0 8px;
+    padding:0;
+    list-style:none;
+  }
+  .task-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    box-shadow:var(--shadow);
+    cursor:pointer;
+  }
+  .task-card:hover{background:var(--card-alt);}
+  .task-info{min-width:0;}
+  .task-name{font-size:14.5px; font-weight:600; margin:0 0 3px;}
+  .task-sub{font-size:12.5px; color:var(--text-muted);}
+  .task-progress-track{
+    margin-top:8px; height:5px; background:var(--border); border-radius:3px;
+    overflow:hidden; max-width:150px;
+  }
+  .task-progress-fill{height:100%; background:var(--sage); border-radius:3px;}
+  .doctor-tag{
+    display:inline-block;
+    margin-left:6px;
+    font-size:11px;
+    font-weight:600;
+    color:var(--sage-dark);
+    background:var(--sage-soft);
+    padding:2px 7px;
+    border-radius:999px;
+    vertical-align:middle;
+  }
+  .state-icon{font-size:20px; flex-shrink:0;}
+
+  .empty-state{
+    text-align:center;
+    color:var(--text-muted);
+    font-size:13.5px;
+    padding:28px 10px;
+    border:1px dashed var(--border);
+    border-radius:14px;
+    margin-bottom:20px;
+    line-height:1.6;
+  }
+
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--sage-dark);
+    color:#fff;
+    padding:10px 18px;
+    border-radius:999px;
+    font-size:13px;
+    box-shadow:var(--shadow);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease;
+    z-index:300;
+  }
+  .toast.show{opacity:1;}
+
+  .error-text{
+    color:#B4483A;
+    font-size:12.5px;
+    margin-top:-4px;
+  }
+
+  .attention-mark{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    color:var(--text-muted);
+    margin-left:8px;
+    font-weight:500;
+  }
+  .attention-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#D9B65B;
+    flex-shrink:0;
+    display:inline-block;
+  }
+  .attention-summary-line{
+    margin-top:6px;
+    font-size:13px;
+    color:var(--text-muted);
+  }
+
+  .stale-mark{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    color:var(--text-muted);
+    margin-left:8px;
+    font-weight:500;
+  }
+  .stale-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--text-muted);
+    flex-shrink:0;
+    display:inline-block;
+  }
+
+  .banner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--sage-soft);
+    border:1px solid var(--sage);
+    color:var(--sage-dark);
+    border-radius:12px;
+    padding:10px 12px;
+    font-size:13px;
+    margin:0 0 16px;
+  }
+  .banner.hidden{display:none;}
+  .banner-text{flex:1; line-height:1.4;}
+  .banner-close{
+    background:none;border:none;color:var(--sage-dark);font-size:16px;cursor:pointer;
+    padding:2px 4px;line-height:1;flex-shrink:0;
+  }
+
+  .journal-block{margin-top:22px;}
+  .journal-list{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;}
+  .journal-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:11px 14px;
+    font-size:13.5px;
+  }
+  .journal-card-head{
+    display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-muted); margin-bottom:3px;
+  }
+  .journal-card-head span:first-child{font-weight:600; color:var(--text);}
+  .journal-card-note{line-height:1.5;}
+  .journal-card-note.empty{color:var(--text-muted); font-style:italic;}
+
+  .task-card-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .task-actions{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+  .icon-action{
+    flex-shrink:0;
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    width:34px;
+    height:34px;
+    border-radius:10px;
+    font-size:14px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+  }
+  .icon-action:hover{background:var(--sage-soft); color:var(--sage-dark); border-color:var(--sage);}
+
+  .password-hint{
+    font-size:11.5px;
+    color:var(--text-muted);
+    margin-top:-4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <h1>Панель врача</h1>
+    <div class="header-right">
+      <div class="mood-pill" id="doctorNamePill">
+        <span>👩‍⚕️</span>
+        <span id="doctorNameDisplay">—</span>
+      </div>
+      <button type="button" class="btn-ghost" id="switchRoleBtn" style="padding:6px 12px;font-size:12.5px;">Сменить роль</button>
+      <button type="button" class="btn-ghost hidden" id="logoutBtn" style="padding:6px 12px;font-size:12.5px;">Выйти</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="screen-login" class="screen active">
+      <div class="pet-card">
+        <div class="section-heading"><h2>Вход в панель врача</h2></div>
+        <div class="add-form" style="margin:0;">
+          <div>
+            <label for="doctorNameInput">Ваше имя</label>
+            <input id="doctorNameInput" type="text" placeholder="Например, Анна Смирнова" required>
+          </div>
+          <div>
+            <label for="doctorPasswordInput">Пароль</label>
+            <input id="doctorPasswordInput" type="password" placeholder="Придумайте пароль" required>
+          </div>
+          <div class="password-hint">При первом входе с этим именем пароль будет задан автоматически. При следующих входах вводите то же имя и тот же пароль.</div>
+          <div class="error-text hidden" id="loginError"></div>
+          <button type="button" class="btn-primary" id="loginBtn">Войти</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-list" class="screen">
+      <div class="banner hidden" id="doctorNoticeBanner">
+        <div class="banner-text" id="doctorNoticeBannerText"></div>
+        <button type="button" class="banner-close" id="doctorNoticeBannerClose" aria-label="Закрыть">×</button>
+      </div>
+      <div class="section-heading"><h2>Мои пациенты</h2></div>
+      <form class="add-form" id="addPatientForm">
+        <div>
+          <label for="pairingCodeInput">Добавить пациента по коду</label>
+          <input id="pairingCodeInput" type="text" placeholder="Например, AB12CD" maxlength="6" style="text-transform:uppercase;letter-spacing:2px;">
+        </div>
+        <div class="error-text hidden" id="addPatientError"></div>
+        <button type="submit" class="btn-primary">Добавить</button>
+      </form>
+      <ul class="task-list" id="patientList"></ul>
+      <div class="empty-state hidden" id="patientListEmpty">Пока нет подключённых пациентов. Попросите пациента открыть «Связь с врачом» в своём приложении и продиктовать код.</div>
+    </section>
+
+    <section id="screen-detail" class="screen">
+      <button type="button" class="btn-ghost" id="backToListBtn" style="margin-bottom:14px;">← Все пациенты</button>
+
+      <div class="pet-card">
+        <div class="pet-name" id="detailPatientName">—</div>
+        <div class="pet-status" id="detailHealthStatus">—</div>
+        <div class="attention-summary-line" id="detailAttentionSummary"></div>
+        <div class="streak-line" id="detailStreak"></div>
+        <div class="week-summary-line" id="detailWeekSummary"></div>
+        <div class="history-block">
+          <div class="history-title">История · 14 дней</div>
+          <div class="history-grid" id="detailHistoryGrid"></div>
+          <div class="history-hint">Нажмите на день, чтобы посмотреть список задач</div>
+          <div class="day-breakdown hidden" id="dayBreakdown">
+            <div class="day-breakdown-date" id="dayBreakdownDate"></div>
+            <div class="day-breakdown-empty hidden" id="dayBreakdownEmpty">В этот день дел не было.</div>
+            <ul class="day-breakdown-list" id="dayBreakdownList"></ul>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:16px;">
+          <button type="button" class="btn-ghost" id="printReportBtn" style="width:100%;">🖨 Печать отчёта</button>
+        </div>
+      </div>
+
+      <div class="journal-block hidden" id="detailJournalBlock">
+        <div class="section-heading"><h2>Дневник настроения</h2></div>
+        <ul class="journal-list" id="detailJournalList"></ul>
+        <div class="empty-state hidden" id="detailJournalEmpty">Записей пока нет.</div>
+      </div>
+
+      <div class="section-heading" style="margin-top:22px;">
+        <h2>Обязательства</h2>
+        <button class="add-btn" id="toggleAssignForm" type="button">+ Назначить</button>
+      </div>
+
+      <form class="add-form hidden" id="assignForm">
+        <div class="edit-mode-tag hidden" id="assignEditTag">Изменение задачи</div>
+        <div>
+          <label for="assignName">Название</label>
+          <input id="assignName" type="text" placeholder="Например, Измерить давление" required>
+        </div>
+        <div>
+          <label for="assignType">Тип</label>
+          <select id="assignType">
+            <option value="once">Разовая доза сегодня</option>
+            <option value="weekday">По дням недели</option>
+            <option value="ongoing">Постоянный приём</option>
+            <option value="course">Курс на несколько дней</option>
+          </select>
+        </div>
+        <div id="assignWeekdaysWrap" class="hidden">
+          <label>Дни недели</label>
+          <div class="weekday-picker" id="assignWeekdayPicker">
+            <label class="weekday-opt"><input type="checkbox" value="mon">Пн</label>
+            <label class="weekday-opt"><input type="checkbox" value="tue">Вт</label>
+            <label class="weekday-opt"><input type="checkbox" value="wed">Ср</label>
+            <label class="weekday-opt"><input type="checkbox" value="thu">Чт</label>
+            <label class="weekday-opt"><input type="checkbox" value="fri">Пт</label>
+            <label class="weekday-opt"><input type="checkbox" value="sat">Сб</label>
+            <label class="weekday-opt"><input type="checkbox" value="sun">Вс</label>
+          </div>
+        </div>
+        <div id="assignCourseDaysWrap" class="hidden">
+          <label for="assignCourseDays">Количество дней курса</label>
+          <input id="assignCourseDays" type="number" min="1" value="7">
+        </div>
+        <div>
+          <label for="assignTime">Время (необязательно)</label>
+          <input id="assignTime" type="time">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-ghost" id="cancelAssignForm">Отмена</button>
+          <button type="submit" class="btn-primary" id="assignSubmitBtn">Назначить</button>
+        </div>
+      </form>
+
+      <ul class="task-list" id="detailObligationsList"></ul>
+      <div class="empty-state hidden" id="detailObligationsEmpty">У пациента пока нет активных задач.</div>
+
+      <div class="section-heading" style="margin-top:22px;">
+        <h2>Отправить сообщение</h2>
+      </div>
+      <div class="add-form">
+        <textarea id="messageText" rows="3" placeholder="Например: Не забывайте про давление!"></textarea>
+        <button type="button" class="btn-primary" id="sendMessageBtn">Отправить</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="role.js"></script>
+<script type="text/plain" id="doctorMain">
+(function(){
+  "use strict";
+
+  const API_BASE = "https://nezabudka-zzaa.onrender.com";
+  const DOCTOR_ID_KEY = "careDoctorId_v1";
+  const DOCTOR_TOKEN_KEY = "careDoctorToken_v1";
+
+  const STATE_INFO = {
+    "bloom": { icon:"🌸", label:"Цветёт" },
+    "normal": { icon:"🌿", label:"В порядке" },
+    "wilt": { icon:"🍂", label:"Увядает" },
+    "wilt-severe": { icon:"🥀", label:"Нуждается в заботе" }
+  };
+  const MONTHS_GEN = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  const WEEKDAY_KEYS = ["sun","mon","tue","wed","thu","fri","sat"];
+  const WEEKDAY_ORDER = ["mon","tue","wed","thu","fri","sat","sun"];
+  const WEEKDAY_LABELS = { mon:"Пн", tue:"Вт", wed:"Ср", thu:"Чт", fri:"Пт", sat:"Сб", sun:"Вс" };
+
+  let doctorId = null;
+  let doctorName = null;
+  let currentPatientId = null;
+  let currentDetail = null;
+  let editingObligationId = null;
+
+  // ---------- date helpers ----------
+  function formatDate(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+  function realTodayStr(){ return formatDate(new Date()); }
+  function addDays(dateStr, delta){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m-1, d);
+    dt.setDate(dt.getDate()+delta);
+    return formatDate(dt);
+  }
+  function formatDisplayDate(dateStr){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    return d + " " + MONTHS_GEN[m-1] + " " + y;
+  }
+  function dowKey(dateStr){
+    const [y,m,d] = dateStr.split("-").map(Number);
+    return WEEKDAY_KEYS[new Date(y, m-1, d).getDay()];
+  }
+  function formatWeekdaysShort(arr){
+    if(!Array.isArray(arr) || arr.length === 0) return "не выбраны дни";
+    return WEEKDAY_ORDER.filter(k => arr.indexOf(k) !== -1).map(k => WEEKDAY_LABELS[k]).join(", ");
+  }
+  function pluralRu(n, one, few, many){
+    const mod10 = n % 10, mod100 = n % 100;
+    if(mod10 === 1 && mod100 !== 11) return one;
+    if(mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) return few;
+    return many;
+  }
+
+  // ---------- task due/done logic (real calendar time, no time machine on the doctor side) ----------
+  function isPausedOn(task, dateStr){
+    if(!Array.isArray(task.pausedRanges)) return false;
+    return task.pausedRanges.some(r => dateStr >= r.from && (r.to === null || r.to === undefined || dateStr <= r.to));
+  }
+  function isDueOn(task, dateStr){
+    if(dateStr < task.createdDate) return false;
+    if(isPausedOn(task, dateStr)) return false;
+    if(task.type === "once") return dateStr === task.createdDate;
+    if(task.type === "ongoing") return true;
+    if(task.type === "weekday") return Array.isArray(task.weekdays) && task.weekdays.indexOf(dowKey(dateStr)) !== -1;
+    if(task.type === "course"){
+      const countBefore = task.completions.filter(d => d < dateStr).length;
+      return countBefore < task.courseTotal;
+    }
+    return false;
+  }
+  function isDoneOn(task, dateStr){
+    return task.completions.indexOf(dateStr) !== -1;
+  }
+  function courseProgress(task){
+    return Math.min(task.completions.length, task.courseTotal);
+  }
+  function dayStats(tasks, dateStr){
+    let due = 0, done = 0;
+    tasks.forEach(task => {
+      if(isDueOn(task, dateStr)){
+        due++;
+        if(isDoneOn(task, dateStr)) done++;
+      }
+    });
+    return { due, done };
+  }
+  function pctBucketClass(due, done){
+    if(due === 0) return "heat-none";
+    const pct = done/due*100;
+    if(pct >= 90) return "heat-4";
+    if(pct >= 50) return "heat-3";
+    if(pct >= 20) return "heat-2";
+    return "heat-1";
+  }
+
+  // ---------- API layer ----------
+  async function apiCall(method, path, body){
+    const opts = { method, headers: {} };
+    const token = localStorage.getItem(DOCTOR_TOKEN_KEY);
+    if(token) opts.headers["Authorization"] = "Bearer " + token;
+    if(body !== undefined){
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(API_BASE + path, opts);
+    let json = null;
+    try{ json = await res.json(); }catch(e){}
+    if(!res.ok){
+      const err = new Error((json && json.error) || ("HTTP " + res.status));
+      err.status = res.status;
+      err.body = json;
+      throw err;
+    }
+    return json;
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function showToast(text){
+    const toast = document.getElementById("toast");
+    toast.textContent = text;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 1800);
+  }
+
+  // ---------- screens ----------
+  const screens = {
+    login: document.getElementById("screen-login"),
+    list: document.getElementById("screen-list"),
+    detail: document.getElementById("screen-detail")
+  };
+  function showScreen(key){
+    Object.keys(screens).forEach(k => screens[k].classList.toggle("active", k === key));
+    document.getElementById("logoutBtn").classList.toggle("hidden", key === "login");
+  }
+
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    localStorage.removeItem(DOCTOR_ID_KEY);
+    localStorage.removeItem(DOCTOR_TOKEN_KEY);
+    doctorId = null;
+    doctorName = null;
+    doctorNameInput.value = "";
+    doctorPasswordInput.value = "";
+    showScreen("login");
+  });
+
+  // ---------- login ----------
+  const doctorNameInput = document.getElementById("doctorNameInput");
+  const doctorPasswordInput = document.getElementById("doctorPasswordInput");
+  const loginBtn = document.getElementById("loginBtn");
+  const loginError = document.getElementById("loginError");
+  const doctorNameDisplay = document.getElementById("doctorNameDisplay");
+
+  async function login(name, password){
+    loginError.classList.add("hidden");
+    try{
+      const doctor = await apiCall("POST", "/api/doctors/login", { name, password });
+      doctorId = doctor.id;
+      doctorName = doctor.name;
+      localStorage.setItem(DOCTOR_ID_KEY, doctorId);
+      localStorage.setItem(DOCTOR_TOKEN_KEY, doctor.token);
+      doctorNameDisplay.textContent = doctorName;
+      showScreen("list");
+      await loadPatientList();
+      await loadDoctorNotices();
+    }catch(e){
+      if(e.status === 401) loginError.textContent = "Неверный пароль для этого имени.";
+      else loginError.textContent = "Не удалось войти. Проверьте, что сервер запущен.";
+      loginError.classList.remove("hidden");
+    }
+  }
+  loginBtn.addEventListener("click", () => {
+    const name = doctorNameInput.value.trim();
+    const password = doctorPasswordInput.value;
+    if(!name || !password) return;
+    login(name, password);
+  });
+  [doctorNameInput, doctorPasswordInput].forEach(inp => {
+    inp.addEventListener("keydown", (e) => {
+      if(e.key === "Enter") loginBtn.click();
+    });
+  });
+
+  // ---------- patient list ----------
+  const patientListEl = document.getElementById("patientList");
+  const patientListEmptyEl = document.getElementById("patientListEmpty");
+  const addPatientForm = document.getElementById("addPatientForm");
+  const pairingCodeInput = document.getElementById("pairingCodeInput");
+  const addPatientError = document.getElementById("addPatientError");
+
+  async function loadPatientList(){
+    const patients = await apiCall("GET", "/api/doctors/" + doctorId + "/patients");
+    patientListEl.innerHTML = "";
+    if(patients.length === 0){
+      patientListEmptyEl.classList.remove("hidden");
+    }else{
+      patientListEmptyEl.classList.add("hidden");
+      patients.forEach(p => {
+        const info = STATE_INFO[p.state] || STATE_INFO.normal;
+        const li = document.createElement("li");
+        li.className = "task-card";
+
+        const icon = document.createElement("span");
+        icon.className = "state-icon";
+        icon.textContent = info.icon;
+
+        const infoWrap = document.createElement("div");
+        infoWrap.className = "task-info";
+        const name = document.createElement("p");
+        name.className = "task-name";
+        name.textContent = p.companionName;
+        if(p.needsAttention){
+          const mark = document.createElement("span");
+          mark.className = "attention-mark";
+          mark.innerHTML = "<span class=\"attention-dot\"></span>Стоит обратить внимание";
+          name.appendChild(mark);
+        }
+        if(p.stale){
+          const staleMark = document.createElement("span");
+          staleMark.className = "stale-mark";
+          staleMark.title = "Устройство пациента давно не выходило на связь с сервером - показанные данные могут отставать от реальных.";
+          staleMark.innerHTML = "<span class=\"stale-dot\"></span>Данные могут быть неактуальны";
+          name.appendChild(staleMark);
+        }
+        const sub = document.createElement("div");
+        sub.className = "task-sub";
+        sub.textContent = info.label + " · выполнено " + p.weekDone + " из " + p.weekDue + " за неделю";
+        infoWrap.appendChild(name);
+        infoWrap.appendChild(sub);
+
+        li.appendChild(icon);
+        li.appendChild(infoWrap);
+        li.addEventListener("click", () => openPatientDetail(p.id));
+        patientListEl.appendChild(li);
+      });
+    }
+  }
+
+  addPatientForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    addPatientError.classList.add("hidden");
+    const code = pairingCodeInput.value.trim().toUpperCase();
+    if(!code) return;
+    try{
+      await apiCall("POST", "/api/doctors/" + doctorId + "/patients", { pairingCode: code });
+      pairingCodeInput.value = "";
+      await loadPatientList();
+      showToast("Пациент подключён");
+    }catch(e){
+      if(e.status === 404) addPatientError.textContent = "Код не найден. Проверьте, что пациент продиктовал его верно.";
+      else if(e.status === 410) addPatientError.textContent = "Этот код устарел. Попросите пациента сгенерировать новый.";
+      else if(e.status === 409) addPatientError.textContent = "Этот пациент уже подключён к другому врачу.";
+      else addPatientError.textContent = "Не удалось добавить пациента.";
+      addPatientError.classList.remove("hidden");
+    }
+  });
+
+  document.getElementById("backToListBtn").addEventListener("click", async () => {
+    currentPatientId = null;
+    currentDetail = null;
+    showScreen("list");
+    await loadPatientList();
+  });
+
+  // ---------- doctor notices (patient toggled mood-diary sharing, etc.) ----------
+  const doctorNoticeBanner = document.getElementById("doctorNoticeBanner");
+  const doctorNoticeBannerText = document.getElementById("doctorNoticeBannerText");
+  const doctorNoticeBannerClose = document.getElementById("doctorNoticeBannerClose");
+
+  async function loadDoctorNotices(){
+    const notices = await apiCall("GET", "/api/doctors/" + doctorId + "/notices");
+    if(notices.length === 0){
+      doctorNoticeBanner.classList.add("hidden");
+      return;
+    }
+    let text = notices[notices.length - 1].summary;
+    if(notices.length > 1){
+      text += " (и ещё " + (notices.length - 1) + ")";
+    }
+    doctorNoticeBannerText.textContent = text;
+    doctorNoticeBanner.classList.remove("hidden");
+  }
+  doctorNoticeBannerClose.addEventListener("click", async () => {
+    await apiCall("POST", "/api/doctors/" + doctorId + "/notices/seen", {});
+    doctorNoticeBanner.classList.add("hidden");
+  });
+
+  // ---------- patient detail ----------
+  const detailPatientNameEl = document.getElementById("detailPatientName");
+  const detailHealthStatusEl = document.getElementById("detailHealthStatus");
+  const detailAttentionSummaryEl = document.getElementById("detailAttentionSummary");
+  const detailStreakEl = document.getElementById("detailStreak");
+  const detailWeekSummaryEl = document.getElementById("detailWeekSummary");
+  const detailHistoryGridEl = document.getElementById("detailHistoryGrid");
+  const detailObligationsListEl = document.getElementById("detailObligationsList");
+  const detailObligationsEmptyEl = document.getElementById("detailObligationsEmpty");
+  const detailJournalBlockEl = document.getElementById("detailJournalBlock");
+  const detailJournalListEl = document.getElementById("detailJournalList");
+  const detailJournalEmptyEl = document.getElementById("detailJournalEmpty");
+  const printReportBtn = document.getElementById("printReportBtn");
+  const dayBreakdownEl = document.getElementById("dayBreakdown");
+  const dayBreakdownDateEl = document.getElementById("dayBreakdownDate");
+  const dayBreakdownEmptyEl = document.getElementById("dayBreakdownEmpty");
+  const dayBreakdownListEl = document.getElementById("dayBreakdownList");
+  let selectedBreakdownDate = null;
+
+  const MOOD_LABELS = { calm:"😌 Спокойно", content:"🙂 Хорошо", tired:"😴 Устало", stressed:"😣 Напряжённо", neutral:"😐 Никак" };
+
+  function renderJournalBlock(detail){
+    // detail.journal is only present in the API response when the patient
+    // has turned mood-diary sharing on - absence means "don't show it at all".
+    if(!detail.journal){
+      detailJournalBlockEl.classList.add("hidden");
+      return;
+    }
+    detailJournalBlockEl.classList.remove("hidden");
+    const dates = Object.keys(detail.journal).sort().reverse();
+    detailJournalListEl.innerHTML = "";
+    if(dates.length === 0){
+      detailJournalEmptyEl.classList.remove("hidden");
+    }else{
+      detailJournalEmptyEl.classList.add("hidden");
+      dates.forEach(d => {
+        const entry = detail.journal[d];
+        const li = document.createElement("li");
+        li.className = "journal-card";
+        const head = document.createElement("div");
+        head.className = "journal-card-head";
+        const dateSpan = document.createElement("span");
+        dateSpan.textContent = formatDisplayDate(d);
+        const moodSpan = document.createElement("span");
+        moodSpan.textContent = entry.mood ? (MOOD_LABELS[entry.mood] || entry.mood) : "";
+        head.appendChild(dateSpan);
+        head.appendChild(moodSpan);
+        const note = document.createElement("div");
+        note.className = "journal-card-note" + (entry.note ? "" : " empty");
+        note.textContent = entry.note ? entry.note : "Без заметки";
+        li.appendChild(head);
+        li.appendChild(note);
+        detailJournalListEl.appendChild(li);
+      });
+    }
+  }
+
+  async function openPatientDetail(patientId){
+    currentPatientId = patientId;
+    showScreen("detail");
+    await loadPatientDetail();
+  }
+
+  async function loadPatientDetail(){
+    const detail = await apiCall("GET", "/api/doctors/" + doctorId + "/patients/" + currentPatientId);
+    currentDetail = detail;
+    renderDetail();
+  }
+
+  function renderDetail(){
+    const detail = currentDetail;
+    const today = realTodayStr();
+    const info = STATE_INFO[detail.healthState] || STATE_INFO.normal;
+
+    detailPatientNameEl.textContent = detail.companionName;
+    detailHealthStatusEl.textContent = info.icon + " " + info.label;
+    detailAttentionSummaryEl.textContent = detail.attentionSummary || "";
+    renderJournalBlock(detail);
+    detailStreakEl.textContent = detail.streak > 0
+      ? (detail.streak + " " + pluralRu(detail.streak, "день", "дня", "дней") + " подряд без пропусков")
+      : "Серия пока не началась.";
+
+    let weekDue = 0, weekDone = 0;
+    for(let i=0;i<7;i++){
+      const s = dayStats(detail.tasks, addDays(today, -i));
+      weekDue += s.due; weekDone += s.done;
+    }
+    detailWeekSummaryEl.textContent = weekDue === 0
+      ? "На этой неделе активных дел не было."
+      : "На этой неделе выполнено " + weekDone + " из " + weekDue + " дел.";
+
+    detailHistoryGridEl.innerHTML = "";
+    selectedBreakdownDate = null;
+    dayBreakdownEl.classList.add("hidden");
+    for(let i = 13; i >= 0; i--){
+      const d = addDays(today, -i);
+      const s = dayStats(detail.tasks, d);
+      const cls = pctBucketClass(s.due, s.done);
+      const cell = document.createElement("div");
+      cell.className = "heat-cell " + cls;
+      cell.textContent = String(Number(d.split("-")[2]));
+      cell.title = formatDisplayDate(d) + (s.due === 0 ? " — задач не было" : " — " + s.done + " из " + s.due + " выполнено");
+      cell.addEventListener("click", () => toggleDayBreakdown(d));
+      detailHistoryGridEl.appendChild(cell);
+    }
+
+    detailObligationsListEl.innerHTML = "";
+    if(detail.tasks.length === 0){
+      detailObligationsEmptyEl.classList.remove("hidden");
+    }else{
+      detailObligationsEmptyEl.classList.add("hidden");
+      detail.tasks.forEach(task => {
+        const li = document.createElement("li");
+        li.className = "task-card task-card-row";
+
+        const infoWrap = document.createElement("div");
+        infoWrap.className = "task-info";
+        infoWrap.style.cursor = "pointer";
+        infoWrap.title = "Нажмите, чтобы изменить";
+        infoWrap.addEventListener("click", () => openAssignForm(task));
+        const name = document.createElement("p");
+        name.className = "task-name";
+        name.textContent = task.name;
+        if(task.assignedByDoctorName){
+          const tag = document.createElement("span");
+          tag.className = "doctor-tag";
+          tag.textContent = "Назначено врачом";
+          tag.title = "Назначил(а): " + task.assignedByDoctorName;
+          name.appendChild(tag);
+        }
+        const sub = document.createElement("div");
+        sub.className = "task-sub";
+        const parts = [];
+        if(task.time) parts.push(task.time);
+        if(task.type === "once") parts.push("Разово, сегодня");
+        else if(task.type === "ongoing") parts.push("Ежедневно");
+        else if(task.type === "weekday") parts.push("По дням: " + formatWeekdaysShort(task.weekdays));
+        else if(task.type === "course") parts.push("Курс: " + courseProgress(task) + " из " + task.courseTotal + " дней");
+        sub.textContent = parts.join(" · ");
+        infoWrap.appendChild(name);
+        infoWrap.appendChild(sub);
+
+        if(task.type === "course"){
+          const track = document.createElement("div");
+          track.className = "task-progress-track";
+          const fill = document.createElement("div");
+          fill.className = "task-progress-fill";
+          fill.style.width = Math.round(courseProgress(task)/task.courseTotal*100) + "%";
+          track.appendChild(fill);
+          infoWrap.appendChild(track);
+        }
+
+        li.appendChild(infoWrap);
+
+        const actions = document.createElement("div");
+        actions.className = "task-actions";
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "icon-action";
+        delBtn.title = "Удалить задачу";
+        delBtn.setAttribute("aria-label", "Удалить задачу");
+        delBtn.textContent = "🗑";
+        delBtn.addEventListener("click", () => deleteAssignedTask(task));
+        actions.appendChild(delBtn);
+        li.appendChild(actions);
+
+        detailObligationsListEl.appendChild(li);
+      });
+    }
+  }
+
+  // Which specific tasks were due/done on a given day - same isDueOn/isDoneOn
+  // logic the heatmap cell colors and patient's own history already use, just
+  // read out by name instead of collapsed into a percentage.
+  function toggleDayBreakdown(dateStr){
+    if(selectedBreakdownDate === dateStr){
+      selectedBreakdownDate = null;
+      dayBreakdownEl.classList.add("hidden");
+      Array.from(detailHistoryGridEl.children).forEach(c => c.classList.remove("selected"));
+      return;
+    }
+    selectedBreakdownDate = dateStr;
+    Array.from(detailHistoryGridEl.children).forEach((c, i) => {
+      const d = addDays(realTodayStr(), -(13 - i));
+      c.classList.toggle("selected", d === dateStr);
+    });
+    renderDayBreakdown(dateStr);
+  }
+
+  function renderDayBreakdown(dateStr){
+    const tasks = currentDetail.tasks;
+    dayBreakdownDateEl.textContent = formatDisplayDate(dateStr);
+    const dueTasks = tasks.filter(t => isDueOn(t, dateStr));
+
+    dayBreakdownListEl.innerHTML = "";
+    if(dueTasks.length === 0){
+      dayBreakdownEmptyEl.classList.remove("hidden");
+    }else{
+      dayBreakdownEmptyEl.classList.add("hidden");
+      dueTasks.forEach(task => {
+        const done = isDoneOn(task, dateStr);
+        const li = document.createElement("li");
+        li.className = "day-breakdown-item";
+        const mark = document.createElement("span");
+        mark.className = "day-breakdown-mark " + (done ? "done" : "missed");
+        mark.textContent = done ? "✓" : "✕";
+        const name = document.createElement("span");
+        name.textContent = task.name;
+        li.appendChild(mark);
+        li.appendChild(name);
+        dayBreakdownListEl.appendChild(li);
+      });
+    }
+    dayBreakdownEl.classList.remove("hidden");
+  }
+
+  // ---------- assign / edit obligation form ----------
+  const assignForm = document.getElementById("assignForm");
+  const toggleAssignFormBtn = document.getElementById("toggleAssignForm");
+  const cancelAssignFormBtn = document.getElementById("cancelAssignForm");
+  const assignName = document.getElementById("assignName");
+  const assignType = document.getElementById("assignType");
+  const assignTime = document.getElementById("assignTime");
+  const assignCourseDaysWrap = document.getElementById("assignCourseDaysWrap");
+  const assignCourseDays = document.getElementById("assignCourseDays");
+  const assignWeekdaysWrap = document.getElementById("assignWeekdaysWrap");
+  const assignWeekdayPicker = document.getElementById("assignWeekdayPicker");
+  const assignEditTag = document.getElementById("assignEditTag");
+  const assignSubmitBtn = document.getElementById("assignSubmitBtn");
+
+  function updateAssignFormTypeVisibility(){
+    assignCourseDaysWrap.classList.toggle("hidden", assignType.value !== "course");
+    assignWeekdaysWrap.classList.toggle("hidden", assignType.value !== "weekday");
+  }
+  assignType.addEventListener("change", updateAssignFormTypeVisibility);
+
+  function getSelectedAssignWeekdays(){
+    return Array.prototype.slice.call(assignWeekdayPicker.querySelectorAll("input[type=checkbox]"))
+      .filter(cb => cb.checked).map(cb => cb.value);
+  }
+  function setAssignWeekdayCheckboxes(arr){
+    Array.prototype.slice.call(assignWeekdayPicker.querySelectorAll("input[type=checkbox]")).forEach(cb => {
+      cb.checked = Array.isArray(arr) && arr.indexOf(cb.value) !== -1;
+    });
+  }
+
+  function openAssignFormBlank(){
+    editingObligationId = null;
+    assignEditTag.classList.add("hidden");
+    assignSubmitBtn.textContent = "Назначить";
+    assignForm.reset();
+    setAssignWeekdayCheckboxes([]);
+    updateAssignFormTypeVisibility();
+    assignForm.classList.remove("hidden");
+    assignName.focus();
+  }
+  function openAssignForm(task){
+    editingObligationId = task.id;
+    assignEditTag.classList.remove("hidden");
+    assignSubmitBtn.textContent = "Сохранить";
+    assignName.value = task.name;
+    assignType.value = task.type;
+    assignTime.value = task.time || "";
+    updateAssignFormTypeVisibility();
+    if(task.type === "course") assignCourseDays.value = task.courseTotal;
+    setAssignWeekdayCheckboxes(task.weekdays);
+    assignForm.classList.remove("hidden");
+    assignName.focus();
+    assignForm.scrollIntoView({ behavior:"smooth", block:"center" });
+  }
+  function closeAssignForm(){
+    assignForm.classList.add("hidden");
+    assignForm.reset();
+    editingObligationId = null;
+    assignEditTag.classList.add("hidden");
+    assignSubmitBtn.textContent = "Назначить";
+  }
+  toggleAssignFormBtn.addEventListener("click", () => {
+    if(assignForm.classList.contains("hidden")) openAssignFormBlank();
+    else closeAssignForm();
+  });
+  cancelAssignFormBtn.addEventListener("click", closeAssignForm);
+
+  assignForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = assignName.value.trim();
+    if(!name) return;
+    const type = assignType.value;
+    if(type === "weekday" && getSelectedAssignWeekdays().length === 0){
+      alert("Выберите хотя бы один день недели.");
+      return;
+    }
+    const payload = { name, type, time: assignTime.value || "" };
+    if(type === "course"){
+      const n = parseInt(assignCourseDays.value, 10);
+      payload.courseTotal = (n && n > 0) ? n : 7;
+    }
+    if(type === "weekday") payload.weekdays = getSelectedAssignWeekdays();
+
+    const base = "/api/doctors/" + doctorId + "/patients/" + currentPatientId + "/obligations";
+    if(editingObligationId){
+      await apiCall("PATCH", base + "/" + editingObligationId, payload);
+      showToast("Задача изменена");
+    }else{
+      await apiCall("POST", base, payload);
+      showToast("Задача назначена");
+    }
+    closeAssignForm();
+    await loadPatientDetail();
+  });
+
+  async function deleteAssignedTask(task){
+    if(!confirm("Удалить «" + task.name + "»? Пациент увидит уведомление об удалении.")) return;
+    await apiCall("DELETE", "/api/doctors/" + doctorId + "/patients/" + currentPatientId + "/obligations/" + task.id);
+    showToast("Задача удалена");
+    await loadPatientDetail();
+  }
+
+  // ---------- print report ----------
+  printReportBtn.addEventListener("click", () => {
+    location.href = "report.html?patientId=" + encodeURIComponent(currentPatientId);
+  });
+
+  // ---------- message ----------
+  const messageText = document.getElementById("messageText");
+  const sendMessageBtn = document.getElementById("sendMessageBtn");
+  sendMessageBtn.addEventListener("click", async () => {
+    const text = messageText.value.trim();
+    if(!text) return;
+    await apiCall("POST", "/api/doctors/" + doctorId + "/patients/" + currentPatientId + "/messages", { text });
+    messageText.value = "";
+    showToast("Сообщение отправлено");
+  });
+
+  // ---------- init ----------
+  (async function init(){
+    const storedId = localStorage.getItem(DOCTOR_ID_KEY);
+    const storedToken = localStorage.getItem(DOCTOR_TOKEN_KEY);
+    if(storedId && storedToken){
+      try{
+        const doctor = await apiCall("GET", "/api/doctors/" + storedId);
+        doctorId = doctor.id;
+        doctorName = doctor.name;
+        doctorNameDisplay.textContent = doctorName;
+        showScreen("list");
+        await loadPatientList();
+        await loadDoctorNotices();
+        return;
+      }catch(e){
+        localStorage.removeItem(DOCTOR_ID_KEY);
+        localStorage.removeItem(DOCTOR_TOKEN_KEY);
+      }
+    }
+    showScreen("login");
+  })();
+})();
+</script>
+<script>
+  // Refuse to boot (and so never touch the network) unless this device's role is "doctor".
+  (function(){
+    if(!NezabudkaRole.gate("doctor")) return;
+    var s = document.createElement("script");
+    s.textContent = document.getElementById("doctorMain").textContent;
+    document.body.appendChild(s);
+  })();
+</script>
+</body>
+</html>
