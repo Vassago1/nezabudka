@@ -12,16 +12,35 @@
 // needed, encode once as lossy WebP.
 //
 // The distance-to-background decision is made on a lightly blurred copy of
-// the source, not the raw pixels. The AVIF/JPEG sources are not perfectly
-// flat where they look flat - compression leaves faint per-pixel noise in
-// the "background" - and without the blur that noise pushes individual
-// pixels in and out of the cutout band, which shows up as a sprayed/hatched
-// translucent patch wherever a soft real-world gradient (e.g. depth-of-field
-// falloff behind a flipper) sits close to the background reference color.
-// Blurring only the distance measurement (never the final RGB) removes that
-// per-pixel jitter while leaving fine detail like whiskers untouched, since
-// those are far enough from the background color to stay classified as
-// subject either way.
+// the source, not the raw pixels, to remove per-pixel compression noise
+// before it can jitter individual pixels in and out of the cutout band.
+//
+// The background reference itself is a per-pixel bilinear model built from
+// the four corner samples, not one flat average. Several sources (seal in
+// particular) have a soft vignette - the background is legitimately ~15-20
+// levels darker in one corner than another - and a single global average
+// forces the cutout band wide enough to cover that whole vignette range.
+// A shaded patch of fur (e.g. the seal's belly, dimmed by the scarf sitting
+// on top of it) can land inside that same wide band and, because it sits
+// flush against the subject's real edge, the flood fill walks straight
+// through the shading gradient and paints the whole shaded patch with
+// partial alpha - not random noise, a smooth misclassified gradient shaped
+// exactly like the shadow that caused it. Modeling the background's own
+// smooth spatial gradient and comparing each pixel to the LOCAL expected
+// background color at its position collapses the cutout band down to just
+// the sensor/compression noise floor (a couple of levels), which is tight
+// enough that the shaded-fur gradient - a lighting effect, not a position
+// effect - no longer overlaps it.
+//
+// The soft feather is also only ever applied in a narrow spatial band around
+// the subject's actual silhouette. A contact shadow on the floor is a smooth
+// gradient, but the floor itself isn't perfectly flat - compression noise or
+// faint surface texture can push isolated floor pixels into the cutout band
+// unpredictably, which without a spatial limit paints a patch of blotchy
+// partial alpha far out in what should be plain background. Any candidate
+// background pixel more than EDGE_BAND px from the real silhouette is
+// hardened straight to fully transparent regardless of its color distance;
+// only the pixels actually near the edge get the graduated feather.
 //
 // Usage: node scripts/build-pet-assets.js [species ...]
 //   node scripts/build-pet-assets.js            # all species
@@ -42,11 +61,13 @@ const OUT_DIRS = [
 
 const MAX_DIM = 800;        // longest output side, matches the existing sprite set
 const CORNER_PATCH = 12;    // px x px sample square at each corner
-const BG_MARGIN = 6;        // slack added on top of the measured corner-to-corner spread
-const FEATHER_WIDTH = 18;   // width of the soft-edge distance band
+const BG_MARGIN = 4;        // slack added on top of the measured within-patch noise floor
+const FEATHER_WIDTH = 10;   // width of the soft-edge distance band
 const DISTANCE_BLUR_SIGMA = 1.5; // denoises the background-distance measurement only, not the final color
 const SUBJECT_ALPHA_THRESHOLD = 128; // alpha above this counts as "subject" for bounding-box purposes
 const BBOX_PADDING = 24;    // extra px kept around the subject's largest component, for its own feathered edge
+const CONTAMINATED_CORNER_MAX_DEV = 20; // a corner patch this internally inconsistent contains part of the subject, not flat background
+const EDGE_BAND = 6;        // px; how far from the real silhouette the soft feather is allowed to reach
 
 const PETS = {
   cat: { good: 'cat-good.avif', great: 'cat-great.jpg', low: 'cat-low.avif', verylow: 'cat-verylow.avif' },
@@ -61,49 +82,159 @@ function colorDistSq(r1, g1, b1, r2, g2, b2) {
   return dr * dr + dg * dg + db * db;
 }
 
-function sampleBackground(raw, width, height, channels) {
-  const patches = [
-    [0, 0],
-    [width - CORNER_PATCH, 0],
-    [0, height - CORNER_PATCH],
-    [width - CORNER_PATCH, height - CORNER_PATCH],
-  ];
-  const avgs = patches.map(([px, py]) => {
-    let sr = 0, sg = 0, sb = 0, n = 0;
-    for (let y = py; y < py + CORNER_PATCH; y++) {
-      for (let x = px; x < px + CORNER_PATCH; x++) {
-        const idx = (y * width + x) * channels;
-        sr += raw[idx]; sg += raw[idx + 1]; sb += raw[idx + 2]; n++;
+// Averages a small square patch and also reports the largest single-pixel
+// deviation from that average - the local compression/sensor noise floor.
+function patchStats(raw, width, px, py, channels) {
+  let sr = 0, sg = 0, sb = 0, n = 0;
+  const vals = [];
+  for (let y = py; y < py + CORNER_PATCH; y++) {
+    for (let x = px; x < px + CORNER_PATCH; x++) {
+      const idx = (y * width + x) * channels;
+      const r = raw[idx], g = raw[idx + 1], b = raw[idx + 2];
+      sr += r; sg += g; sb += b; n++;
+      vals.push([r, g, b]);
+    }
+  }
+  const avg = [sr / n, sg / n, sb / n];
+  let maxDev = 0;
+  for (const [r, g, b] of vals) {
+    maxDev = Math.max(maxDev, Math.sqrt(colorDistSq(r, g, b, avg[0], avg[1], avg[2])));
+  }
+  return { avg, maxDev };
+}
+
+// Builds a per-pixel background model by bilinearly interpolating the four
+// corner averages across the canvas, so a vignetted/gradient background is
+// compared against its own local expected value rather than one flat
+// average. Also returns the background noise floor (the worst within-patch
+// deviation seen in any corner), which is a much tighter number than the
+// corner-to-corner spread a flat model would need to cover.
+//
+// Not every source keeps all four corners clear - a curled-up pose can put
+// part of the subject right in a corner (seal-low, seal-verylow both do).
+// A corner patch that straddles subject and background has a huge internal
+// deviation - nothing like the few-levels noise floor a flat patch has - so
+// any corner over CONTAMINATED_CORNER_MAX_DEV is treated as unreliable,
+// dropped from the noise-floor measurement, and its average is replaced
+// with the average of the remaining clean corners instead of trusting it.
+function backgroundModel(raw, width, height, channels) {
+  const corners = {
+    tl: patchStats(raw, width, 0, 0, channels),
+    tr: patchStats(raw, width, width - CORNER_PATCH, 0, channels),
+    bl: patchStats(raw, width, 0, height - CORNER_PATCH, channels),
+    br: patchStats(raw, width, width - CORNER_PATCH, height - CORNER_PATCH, channels),
+  };
+
+  const cleanKeys = Object.keys(corners).filter((k) => corners[k].maxDev <= CONTAMINATED_CORNER_MAX_DEV);
+  if (cleanKeys.length === 0) {
+    throw new Error('All four corner patches look contaminated by the subject - cannot locate a background reference');
+  }
+  const cleanAvg = [0, 0, 0];
+  for (const k of cleanKeys) {
+    for (let c = 0; c < 3; c++) cleanAvg[c] += corners[k].avg[c];
+  }
+  for (let c = 0; c < 3; c++) cleanAvg[c] /= cleanKeys.length;
+
+  for (const k of Object.keys(corners)) {
+    if (corners[k].maxDev > CONTAMINATED_CORNER_MAX_DEV) corners[k] = { avg: cleanAvg, maxDev: 0, contaminated: true };
+  }
+
+  const { tl, tr, bl, br } = corners;
+  const noise = Math.max(...cleanKeys.map((k) => corners[k].maxDev));
+
+  const at = (x, y) => {
+    const fx = x / (width - 1);
+    const fy = y / (height - 1);
+    const out = [0, 0, 0];
+    for (let c = 0; c < 3; c++) {
+      const top = tl.avg[c] * (1 - fx) + tr.avg[c] * fx;
+      const bottom = bl.avg[c] * (1 - fx) + br.avg[c] * fx;
+      out[c] = top * (1 - fy) + bottom * fy;
+    }
+    return out;
+  };
+  const contaminated = Object.keys(corners).filter((k) => corners[k].contaminated);
+  return { at, noise, contaminated, corners: { tl: tl.avg, tr: tr.avg, bl: bl.avg, br: br.avg } };
+}
+
+// 4-connected component labeling of a binary mask. Returns a label per pixel
+// (-1 where the mask is false) and each component's pixel count.
+function connectedComponents(mask, width, height) {
+  const n = width * height;
+  const label = new Int32Array(n).fill(-1);
+  const sizes = [];
+  const queue = new Int32Array(n);
+  let nextLabel = 0;
+  for (let start = 0; start < n; start++) {
+    if (!mask[start] || label[start] !== -1) continue;
+    let qHead = 0, qTail = 0;
+    label[start] = nextLabel;
+    queue[qTail++] = start;
+    let size = 0;
+    while (qHead < qTail) {
+      const i = queue[qHead++];
+      const x = i % width, y = (i / width) | 0;
+      size++;
+      const neighbors = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        y > 0 ? i - width : -1,
+        y < height - 1 ? i + width : -1,
+      ];
+      for (const ni of neighbors) {
+        if (ni >= 0 && mask[ni] && label[ni] === -1) {
+          label[ni] = nextLabel;
+          queue[qTail++] = ni;
+        }
       }
     }
-    return [sr / n, sg / n, sb / n];
-  });
-  const bg = [0, 0, 0];
-  for (const a of avgs) { bg[0] += a[0]; bg[1] += a[1]; bg[2] += a[2]; }
-  bg[0] /= 4; bg[1] /= 4; bg[2] /= 4;
-  let spread = 0;
-  for (const a of avgs) {
-    spread = Math.max(spread, Math.sqrt(colorDistSq(a[0], a[1], a[2], bg[0], bg[1], bg[2])));
+    sizes.push(size);
+    nextLabel++;
   }
-  return { bg, spread };
+  return { label, sizes };
 }
 
 // Flood-fill chroma key. `candidate` marks every pixel within highT of the
-// background reference color. Only candidates *reachable from the image
-// border* through other candidates are ever cut out - an interior pixel
-// that coincidentally falls in the same distance band (a pale scarf edge
-// against pale fur, for instance) but is fully surrounded by opaque subject
-// pixels never gets touched, no matter how close its color is to the
-// background sample.
-function floodCutout(raw, width, height, channels, bg, lowT, highT) {
+// LOCAL background reference color. Only candidates *reachable from the
+// image border* through other candidates are ever cut out - an interior
+// pixel that coincidentally falls in the same distance band (a pale scarf
+// edge against pale fur, for instance) but is fully surrounded by opaque
+// subject pixels never gets touched, no matter how close its color is to
+// the background sample.
+//
+// Before that flood fill runs, every "not background colored" pixel is
+// grouped into connected components and only the largest is trusted as the
+// actual pet - smaller islands (an isolated fleck of floor texture whose
+// color happens to fall outside the cutout band, a stray sensor artifact)
+// are folded back into the background candidate set instead of being kept
+// as full-opacity noise specks.
+function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
   const n = width * height;
   const dist = new Float32Array(n);
   const candidate = new Uint8Array(n);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      const idx = i * channels;
+      const bg = bgModel.at(x, y);
+      const d = Math.sqrt(colorDistSq(raw[idx], raw[idx + 1], raw[idx + 2], bg[0], bg[1], bg[2]));
+      dist[i] = d;
+      candidate[i] = d <= highT ? 1 : 0;
+    }
+  }
+
+  const notCandidate = new Uint8Array(n);
+  for (let i = 0; i < n; i++) notCandidate[i] = candidate[i] ? 0 : 1;
+  const { label, sizes } = connectedComponents(notCandidate, width, height);
+  let largestLabel = -1, largestSize = -1;
+  sizes.forEach((size, idx) => {
+    if (size > largestSize) { largestSize = size; largestLabel = idx; }
+  });
+  const trueSubject = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    const idx = i * channels;
-    const d = Math.sqrt(colorDistSq(raw[idx], raw[idx + 1], raw[idx + 2], bg[0], bg[1], bg[2]));
-    dist[i] = d;
-    candidate[i] = d <= highT ? 1 : 0;
+    if (label[i] === -1) continue;
+    if (label[i] === largestLabel) trueSubject[i] = 1;
+    else candidate[i] = 1; // stray island, not the pet - treat it as background candidate instead
   }
 
   const visited = new Uint8Array(n);
@@ -135,14 +266,54 @@ function floodCutout(raw, width, height, channels, bg, lowT, highT) {
     if (y < height - 1) pushIfCandidate(i + width);
   }
 
+  // Spatial (pixel-count) BFS distance from the true subject's silhouette,
+  // traveling only through background-connected cells. Used to confine the
+  // soft feather to a thin band around the real edge - see EDGE_BAND above.
+  const spatialDist = new Int32Array(n).fill(-1);
+  const edgeQueue = new Int32Array(n);
+  let eHead = 0, eTail = 0;
+  for (let i = 0; i < n; i++) {
+    if (!trueSubject[i]) continue;
+    const x = i % width, y = (i / width) | 0;
+    const neighbors = [
+      x > 0 ? i - 1 : -1,
+      x < width - 1 ? i + 1 : -1,
+      y > 0 ? i - width : -1,
+      y < height - 1 ? i + width : -1,
+    ];
+    for (const ni of neighbors) {
+      if (ni >= 0 && visited[ni] && spatialDist[ni] === -1) {
+        spatialDist[ni] = 1;
+        edgeQueue[eTail++] = ni;
+      }
+    }
+  }
+  while (eHead < eTail) {
+    const i = edgeQueue[eHead++];
+    const x = i % width, y = (i / width) | 0;
+    const d = spatialDist[i];
+    const neighbors = [
+      x > 0 ? i - 1 : -1,
+      x < width - 1 ? i + 1 : -1,
+      y > 0 ? i - width : -1,
+      y < height - 1 ? i + width : -1,
+    ];
+    for (const ni of neighbors) {
+      if (ni >= 0 && visited[ni] && spatialDist[ni] === -1) {
+        spatialDist[ni] = d + 1;
+        edgeQueue[eTail++] = ni;
+      }
+    }
+  }
+
   const alpha = new Uint8ClampedArray(n);
   const featherRange = Math.max(1, highT - lowT);
   let midRangeCount = 0;
   for (let i = 0; i < n; i++) {
-    if (!visited[i]) {
-      alpha[i] = 255; // never reached from the border -> not background, full opacity
-      continue;
-    }
+    if (trueSubject[i]) { alpha[i] = 255; continue; }
+    if (!visited[i]) { alpha[i] = 255; continue; } // isolated bg-colored pocket fully inside the subject (an eye highlight, etc.)
+    const sd = spatialDist[i];
+    if (sd === -1 || sd > EDGE_BAND) { alpha[i] = 0; continue; } // far from any real edge - hard background
     const t = (dist[i] - lowT) / featherRange;
     const a = Math.round(Math.max(0, Math.min(1, t)) * 255);
     alpha[i] = a;
@@ -212,11 +383,11 @@ async function processOne(species, state, filename) {
   const raw = await image.raw().toBuffer(); // 3-channel RGB, all sources are flat-background renders
   const distSrc = await sharp(srcPath).blur(DISTANCE_BLUR_SIGMA).raw().toBuffer(); // denoised, used only to decide alpha
 
-  const { bg, spread } = sampleBackground(distSrc, width, height, 3);
-  const lowT = spread + BG_MARGIN;
+  const bgModel = backgroundModel(distSrc, width, height, 3);
+  const lowT = bgModel.noise + BG_MARGIN;
   const highT = lowT + FEATHER_WIDTH;
 
-  const { alpha, midRangeRatio } = floodCutout(distSrc, width, height, 3, bg, lowT, highT);
+  const { alpha, midRangeRatio } = floodCutout(distSrc, width, height, 3, bgModel, lowT, highT);
 
   const rgba = Buffer.alloc(width * height * 4);
   for (let i = 0; i < width * height; i++) {
@@ -249,9 +420,10 @@ async function processOne(species, state, filename) {
   }
 
   console.log(
-    `${outName}: bg=rgb(${bg.map((v) => v.toFixed(1)).join(',')}) spread=${spread.toFixed(1)} ` +
-    `lowT=${lowT.toFixed(1)} highT=${highT.toFixed(1)} bbox=${box.width}x${box.height} ` +
-    `midRangeAlpha=${(midRangeRatio * 100).toFixed(2)}%`
+    `${outName}: cornerTL=rgb(${bgModel.corners.tl.map((v) => v.toFixed(1)).join(',')}) ` +
+    `noise=${bgModel.noise.toFixed(2)}${bgModel.contaminated.length ? ' contaminated=' + bgModel.contaminated.join(',') : ''} ` +
+    `lowT=${lowT.toFixed(1)} highT=${highT.toFixed(1)} ` +
+    `bbox=${box.width}x${box.height} midRangeAlpha=${(midRangeRatio * 100).toFixed(2)}%`
   );
 }
 
@@ -272,7 +444,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}
