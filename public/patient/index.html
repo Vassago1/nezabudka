@@ -195,11 +195,8 @@
     width:100%;
     max-width:150px;
     margin:0 auto;
-    /* background already removed from the source image (transparent WebP) -
-       a drop-shadow (follows the pet's own silhouette) grounds it on the
-       scene photo instead of a box-shadow, which would draw a rectangle
-       around the transparent margins. */
-    filter:drop-shadow(0 6px 8px rgba(0,0,0,.3));
+    position:relative;
+    z-index:1;
   }
   /* Toggled by applySpeciesTheme for whichever species has its own photo
      set (see PHOTO_STATE_FILES) - species-id based, not shape/kind based,
@@ -207,6 +204,29 @@
      species that still uses the SVG rig. */
   #plantStage.photo-active{display:none;}
   #plantStage.photo-active ~ .stage-photo{display:block;}
+  /* Flat, blurred ground-contact shadow for photo-based pets. The WebP
+     sprites themselves no longer carry a baked-in floor shadow (trimmed at
+     the asset-pipeline level - see scripts/build-pet-assets.js - because a
+     shadow baked into the photo only reads correctly against a white
+     background). This is a plain radial-gradient oval instead: it looks
+     like a natural contact shadow against any scene photo, and being a
+     separate, unanimated element (not inside .pet-visual/.pet-breathe) it
+     never has to react to the appear/breathing/improve-glow animations
+     those play out on the pet itself. */
+  .pet-ground-shadow{
+    display:none;
+    position:absolute;
+    left:50%;
+    bottom:16px;
+    width:86px;
+    height:16px;
+    margin-left:-43px;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,.22) 0%, rgba(0,0,0,.12) 55%, rgba(0,0,0,0) 75%);
+    filter:blur(2px);
+    z-index:0;
+    pointer-events:none;
+  }
+  #plantStage.photo-active ~ .pet-ground-shadow{display:block;}
   .plant-group{
     transition:filter 1.3s ease;
   }
@@ -2049,6 +2069,7 @@
           </g>
         </svg>
         <img id="petStageImg" class="stage-photo" alt="" src="img/cat-great.webp">
+        <div class="pet-ground-shadow" id="petGroundShadow"></div>
         </div>
         </div>
         </div>

@@ -42,6 +42,17 @@
 // hardened straight to fully transparent regardless of its color distance;
 // only the pixels actually near the edge get the graduated feather.
 //
+// Every render also bakes in a soft contact shadow under the pet's feet,
+// full opacity, that reads as a light "puddle" once composited over
+// anything but a white background. Color/texture can't reliably separate
+// it from the pet - the shadow blends into the belly's own soft ambient
+// shading as one continuous smooth gradient - so it's trimmed geometrically
+// instead: the narrowest row near the bottom (the pet's own "waist", just
+// above where the shadow fans out) sets how wide the subject is allowed to
+// be down there, and anything wider than that in the same band is the
+// shadow's flare, not the pet. The app draws its own CSS shadow underneath
+// to replace it (see the pet screen's shadow element).
+//
 // Usage: node scripts/build-pet-assets.js [species ...]
 //   node scripts/build-pet-assets.js            # all species
 //   node scripts/build-pet-assets.js seal        # just seal-*
@@ -68,6 +79,9 @@ const SUBJECT_ALPHA_THRESHOLD = 128; // alpha above this counts as "subject" for
 const BBOX_PADDING = 24;    // extra px kept around the subject's largest component, for its own feathered edge
 const CONTAMINATED_CORNER_MAX_DEV = 20; // a corner patch this internally inconsistent contains part of the subject, not flat background
 const EDGE_BAND = 6;        // px; how far from the real silhouette the soft feather is allowed to reach
+const SHADOW_BAND_FRACTION = 0.25; // bottom fraction of the subject's own height searched for the contact shadow's flare
+const SHADOW_MAX_GROWTH_PER_ROW = 18; // px/row the silhouette is allowed to widen naturally (a flipper or paw flaring out); more than this, in one row, is the shadow starting
+const SHADOW_WING_MARGIN = 15; // px of slack added around the last legitimate width before anything wider counts as shadow, not pet
 
 const PETS = {
   cat: { good: 'cat-good.avif', great: 'cat-great.jpg', low: 'cat-low.avif', verylow: 'cat-verylow.avif' },
@@ -235,6 +249,85 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
     if (label[i] === -1) continue;
     if (label[i] === largestLabel) trueSubject[i] = 1;
     else candidate[i] = 1; // stray island, not the pet - treat it as background candidate instead
+  }
+
+  // The renders all come with a soft contact shadow baked into the floor,
+  // which is part of the largest component (it touches the feet) and reads
+  // as "not background colored" - so without this step it stays a fully
+  // opaque light patch under the pet instead of fading into whatever scene
+  // the app composites it over.
+  //
+  // Color and texture turned out not to reliably tell a shadow apart from
+  // the pet: the shadow blends into the belly's own ambient-occlusion
+  // shading as one continuous smooth gradient, with no clean boundary in
+  // either color distance or local variance (tried both - a threshold loose
+  // enough to catch the shadow also ate a hole in the belly between the
+  // feet, because that patch is just as smooth and just as pale). What IS
+  // reliable is geometry: real anatomy (a flipper flaring out, a paw
+  // planting) widens the silhouette gradually, a few px per row; the
+  // shadow's flare starts as an abrupt jump instead. Walking down the
+  // bottom band row by row and only ever letting the "allowed" span grow by
+  // SHADOW_MAX_GROWTH_PER_ROW tracks a flaring flipper just fine, then
+  // freezes the moment a row jumps past that rate - which is where the
+  // shadow starts - and clips every row from there down to that frozen
+  // span. A row can still narrow immediately (tracking the body shrinking
+  // back in), just not widen fast.
+  //
+  // Not every shadow announces itself with a jump, though - a pot's base
+  // can fade into its own ambient-occlusion halo just as gradually as the
+  // growth-rate allows, and that case slips through this check with some
+  // residual haze left around the base. The CSS ground-shadow the app draws
+  // is deliberately sized to cover that residual too (see .pet-ground-
+  // shadow), so a case this check misses still ends up looking fine, just
+  // via the CSS layer instead of the cutout.
+  let subjectMinY = height, subjectMaxY = -1;
+  for (let i = 0; i < n; i++) {
+    if (!trueSubject[i]) continue;
+    const y = (i / width) | 0;
+    if (y < subjectMinY) subjectMinY = y;
+    if (y > subjectMaxY) subjectMaxY = y;
+  }
+  if (subjectMaxY >= 0) {
+    const bandTop = subjectMaxY - Math.round((subjectMaxY - subjectMinY) * SHADOW_BAND_FRACTION);
+
+    let allowedMinX = null, allowedMaxX = null;
+    let frozen = false;
+    for (let y = bandTop; y <= subjectMaxY; y++) {
+      let minX = -1, maxX = -1;
+      for (let x = 0; x < width; x++) {
+        if (trueSubject[y * width + x]) {
+          if (minX === -1) minX = x;
+          maxX = x;
+        }
+      }
+      if (minX === -1) continue;
+
+      if (!frozen) {
+        if (allowedMinX === null) {
+          allowedMinX = minX;
+          allowedMaxX = maxX;
+        } else {
+          const growLeft = allowedMinX - minX;
+          const growRight = maxX - allowedMaxX;
+          if (growLeft > SHADOW_MAX_GROWTH_PER_ROW || growRight > SHADOW_MAX_GROWTH_PER_ROW) {
+            frozen = true; // sudden widening - the shadow starts here, lock the span as of the previous row
+          } else {
+            allowedMinX = Math.min(allowedMinX, minX);
+            allowedMaxX = Math.max(allowedMaxX, maxX);
+          }
+        }
+      }
+
+      if (frozen && allowedMinX !== null) {
+        const safeMinX = allowedMinX - SHADOW_WING_MARGIN;
+        const safeMaxX = allowedMaxX + SHADOW_WING_MARGIN;
+        for (let x = 0; x < width; x++) {
+          if (x >= safeMinX && x <= safeMaxX) continue;
+          const i = y * width + x;
+          if (trueSubject[i]) { trueSubject[i] = 0; candidate[i] = 1; }
+        }
+      }
+    }
   }
 
   const visited = new Uint8Array(n);
