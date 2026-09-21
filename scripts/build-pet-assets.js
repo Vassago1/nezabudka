@@ -80,7 +80,8 @@ const BBOX_PADDING = 24;    // extra px kept around the subject's largest compon
 const CONTAMINATED_CORNER_MAX_DEV = 20; // a corner patch this internally inconsistent contains part of the subject, not flat background
 const EDGE_BAND = 6;        // px; how far from the real silhouette the soft feather is allowed to reach
 const SHADOW_BAND_FRACTION = 0.25; // bottom fraction of the subject's own height searched for the contact shadow's flare
-const SHADOW_MAX_GROWTH_PER_ROW = 18; // px/row the silhouette is allowed to widen naturally (a flipper or paw flaring out); more than this, in one row, is a shadow starting abruptly
+const SHADOW_MAX_GROWTH_PER_ROW = 18; // px/row the silhouette is allowed to widen naturally before tier 1 stops trusting the running reference and looks for a jump
+const SHADOW_JUMP_CONFIRM = 45; // px a single-row jump must reach to be trusted as a real abrupt edge (a paw planting) rather than a shadow/halo just starting to fan out - measured empirically: real edges jumped 78-138px, shadow onsets only 19-32px
 const SHADOW_CORE_DIST = 150; // color distance from local bg above which a pixel is confidently real material, not a fading shadow/ambient-occlusion halo
 const SHADOW_CORE_MIN_PLAUSIBLE_RATIO = 0.5; // a row's core span narrower than this fraction of the running reference is treated as a fluke, not a real narrowing
 const SHADOW_WING_MARGIN = 20; // px of slack added around each row's own confident-material span before anything past it counts as shadow, not pet
@@ -297,8 +298,17 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
     const bandTop = subjectMaxY - Math.round((subjectMaxY - subjectMinY) * SHADOW_BAND_FRACTION);
 
     // Tier 1: abrupt-jump detection on the full (non-color-filtered) width.
+    // A row that widens past SHADOW_MAX_GROWTH_PER_ROW stops the running
+    // reference from tracking further, but the resulting freeze is only
+    // trusted as a real edge (a paw planting, not a shadow just starting to
+    // fan out) when the jump that triggered it also clears the much higher
+    // SHADOW_JUMP_CONFIRM bar - measured empirically, real edges jumped
+    // 78-138px in one row, while a shadow/halo beginning to spread only
+    // managed 19-32px. A jump in between is treated as inconclusive and the
+    // whole band falls through to tier 2 instead of trusting a shaky guess.
     let allowedMinX = null, allowedMaxX = null;
     let jumpFrozen = false;
+    let inconclusive = false;
     let freezeStartY = -1;
     for (let y = bandTop; y <= subjectMaxY; y++) {
       let minX = -1, maxX = -1;
@@ -309,16 +319,21 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
         }
       }
       if (minX === -1) continue;
-      if (jumpFrozen) continue;
+      if (jumpFrozen || inconclusive) continue;
       if (allowedMinX === null) {
         allowedMinX = minX;
         allowedMaxX = maxX;
       } else {
         const growLeft = allowedMinX - minX;
         const growRight = maxX - allowedMaxX;
-        if (growLeft > SHADOW_MAX_GROWTH_PER_ROW || growRight > SHADOW_MAX_GROWTH_PER_ROW) {
-          jumpFrozen = true;
-          freezeStartY = y;
+        const jump = Math.max(growLeft, growRight);
+        if (jump > SHADOW_MAX_GROWTH_PER_ROW) {
+          if (jump >= SHADOW_JUMP_CONFIRM) {
+            jumpFrozen = true;
+            freezeStartY = y;
+          } else {
+            inconclusive = true; // ambiguous - not confident enough to trust tier 1 for this image at all
+          }
         } else {
           allowedMinX = minX;
           allowedMaxX = maxX;
@@ -373,6 +388,12 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
         }
       }
     }
+  }
+
+  if (process.env.DEBUG_PIXEL) {
+    const [dx, dy] = process.env.DEBUG_PIXEL.split(',').map(Number);
+    const di = dy * width + dx;
+    console.error('after wing-trim, pixel', dx, dy, 'trueSubject=' + trueSubject[di], 'candidate=' + candidate[di], 'dist=' + dist[di].toFixed(1));
   }
 
   const visited = new Uint8Array(n);
@@ -457,6 +478,11 @@ function floodCutout(raw, width, height, channels, bgModel, lowT, highT) {
     alpha[i] = a;
     if (a > 8 && a < 247) midRangeCount++;
   }
+  if (process.env.DEBUG_PIXEL) {
+    const [dx, dy] = process.env.DEBUG_PIXEL.split(',').map(Number);
+    const di = dy * width + dx;
+    console.error('final', dx, dy, 'trueSubject=' + trueSubject[di], 'candidate=' + candidate[di], 'visited=' + visited[di], 'spatialDist=' + spatialDist[di], 'alpha=' + alpha[di]);
+  }
   return { alpha, midRangeRatio: midRangeCount / n };
 }
 
@@ -536,6 +562,7 @@ async function processOne(species, state, filename) {
   }
 
   const box = subjectBoundingBox(alpha, width, height);
+  if (process.env.DEBUG_PIXEL) console.error('crop box', JSON.stringify(box));
   let pipeline = sharp(rgba, { raw: { width, height, channels: 4 } }).extract(box);
 
   if (Math.max(box.width, box.height) > MAX_DIM) {
