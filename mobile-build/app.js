@@ -868,7 +868,17 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       }).filter(Boolean);
     }
     if(task.type === "once"){
-      const [y, m, d] = task.createdDate.split("-").map(Number);
+      // Deliberately realTodayStr(), NOT task.createdDate: createdDate is
+      // computed server-side as "today + the patient's time-machine offset"
+      // (patientVirtualToday in server/store.js), so with the demo time
+      // machine jumped forward it's a future calendar date, not today. A
+      // native OS alarm is a real-world event with no concept of virtual
+      // time - anchoring it to that offset date silently scheduled the
+      // reminder days ahead of when the app appeared to promise it "today".
+      // "ongoing"/"weekday"/"course" below never hit this: their `on:
+      // {hour, minute[, weekday]}` schedule carries no date at all: Android
+      // resolves it as "the next real occurrence of this hour/minute" itself.
+      const [y, m, d] = realTodayStr().split("-").map(Number);
       return [{ slot: 9, at: new Date(y, m - 1, d, hh, mm, 0) }];
     }
     // ongoing, or a course that isn't finished yet - remind daily
