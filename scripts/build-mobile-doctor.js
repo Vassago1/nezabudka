@@ -8,8 +8,11 @@
 // (a failed match aborts, so upstream drift can't silently produce a broken copy):
 //  - API calls go to the real Render server (API_BASE) instead of a relative path,
 //    the same address app.js uses for the patient side
+//  - role.js is loaded from alongside doctor.html ("role.js"), not from the
+//    web app's absolute "/shared/role.js" - the "Сменить роль" button itself
+//    is already in the web source (public/doctor/index.html) and needs no
+//    mobile-specific insertion
 //  - the main script only boots when the saved role is "doctor" (role.js gate)
-//  - a "Сменить роль" button in the header
 //  - the report opens in the same WebView (no window.open/window.close there)
 'use strict';
 const fs = require('fs');
@@ -39,11 +42,10 @@ function buildDoctor() {
     `  const API_BASE = "${API_BASE}";\n  const DOCTOR_ID_KEY = "careDoctorId_v1";`, 'DOCTOR_ID_KEY');
   s = replaceOnce(s, 'window.open("/doctor/report.html?patientId=" + encodeURIComponent(currentPatientId), "_blank");',
     'location.href = "report.html?patientId=" + encodeURIComponent(currentPatientId);', 'report link');
-  s = replaceOnce(s, '      <button type="button" class="btn-ghost hidden" id="logoutBtn"',
-    '      <button type="button" class="btn-ghost" id="switchRoleBtn" style="padding:6px 12px;font-size:12.5px;">Сменить роль</button>\n      <button type="button" class="btn-ghost hidden" id="logoutBtn"', 'header buttons');
+  s = replaceOnce(s, '<script src="/shared/role.js"></script>', '<script src="role.js"></script>', 'role.js path');
   // Main script: park it as inert text and only run it once the role gate passes.
   s = replaceOnce(s, '<script>\n(function(){\n  "use strict";\n',
-    '<script src="role.js"></script>\n<script type="text/plain" id="doctorMain">\n(function(){\n  "use strict";\n', 'main script open');
+    '<script type="text/plain" id="doctorMain">\n(function(){\n  "use strict";\n', 'main script open');
   s = replaceOnce(s, '</script>\n</body>',
     `</script>
 <script>

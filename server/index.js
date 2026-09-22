@@ -32,6 +32,7 @@ app.use("/api/doctors", doctorRoutes);
 
 app.use("/patient", express.static(path.join(__dirname, "..", "public", "patient")));
 app.use("/doctor", express.static(path.join(__dirname, "..", "public", "doctor")));
+app.use("/shared", express.static(path.join(__dirname, "..", "public", "shared")));
 
 app.get("/patient", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "patient", "index.html"));
@@ -39,8 +40,12 @@ app.get("/patient", (req, res) => {
 app.get("/doctor", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "doctor", "index.html"));
 });
+// "Кто вы?" - shown once per browser; a returning patient/doctor is bounced
+// straight to their page client-side (see public/index.html + shared/role.js).
+// /patient and /doctor themselves stay directly reachable regardless of the
+// stored role, so existing bookmarks and shared registration links keep working.
 app.get("/", (req, res) => {
-  res.redirect("/patient");
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
 app.use((err, req, res, next) => {
