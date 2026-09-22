@@ -10,13 +10,25 @@
   const ROLE_KEY = "nezabudkaRole_v1";
   const PATIENT_ID_KEY = "carePatientId_v1"; // written by app.js once a patient is registered
 
+  // ROLE_KEY has three distinct states, not two - the role choice is its own
+  // flag and must never be re-derived from what other data happens to be on
+  // the device:
+  //   "patient" / "doctor"  - chosen (explicitly, or migrated once below)
+  //   "" (explicit sentinel) - the person asked to choose again ("Сменить
+  //                            роль"); never auto-resolve this back to a role
+  //                            just because patient/doctor data is still there
+  //   absent (key never written) - a pre-role-selection install; here, and
+  //                            only here, fall back to the old data-presence
+  //                            migration so upgraders don't get asked cold
   function safeGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 
   function getRole(){
     const saved = safeGet(ROLE_KEY);
     if(saved === "patient" || saved === "doctor") return saved;
-    // Installs from before role selection existed already have patient data on
-    // the device - keep them in the patient UI instead of asking "who are you?".
+    if(saved === "") return null; // explicitly cleared - always show the picker
+    // Key was never written at all: a pre-role-selection install already has
+    // patient data on the device - keep it in the patient UI instead of
+    // asking "who are you?". Runs once; setRole persists it as a real choice.
     if(safeGet(PATIENT_ID_KEY)){
       setRole("patient");
       return "patient";
@@ -24,7 +36,7 @@
     return null;
   }
   function setRole(role){ try{ localStorage.setItem(ROLE_KEY, role); }catch(e){} }
-  function clearRole(){ try{ localStorage.removeItem(ROLE_KEY); }catch(e){} }
+  function clearRole(){ try{ localStorage.setItem(ROLE_KEY, ""); }catch(e){} }
 
   const PAGE_FOR = { patient: "index.html", doctor: "doctor.html", none: "role.html" };
 
