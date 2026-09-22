@@ -781,6 +781,20 @@
       <div class="settings-hint" style="color:#B4483A;">Уведомления отключены — включите их в настройках телефона, чтобы не пропускать напоминания.</div>
     </div>
 
+    <div class="settings-block" id="notifStyleBlock">
+      <label>Тип напоминания</label>
+      <label class="notif-style-option">
+        <input type="radio" name="notifStyle" id="notifStyleNormal" value="normal">
+        <span>Обычное — короткая вибрация и стандартный тихий звук</span>
+      </label>
+      <label class="notif-style-option">
+        <input type="radio" name="notifStyle" id="notifStyleAlarm" value="alarm">
+        <span>Как звонок — громкий настойчивый сигнал и сильная повторяющаяся вибрация</span>
+      </label>
+      <button type="button" class="btn-ghost" id="notifStyleTestBtn" style="width:100%;margin-top:6px;">Проверить</button>
+      <div class="settings-hint">Применяется ко всем напоминаниям: и основному по расписанию, и повторному через 10 минут.</div>
+    </div>
+
     <div class="settings-block">
       <button type="button" class="btn-primary" id="exportDataBtn" style="width:100%;">Экспортировать мои данные</button>
       <div class="settings-hint">Скачивает снимок текущих данных с сервера в JSON.</div>

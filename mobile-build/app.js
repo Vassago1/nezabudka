@@ -723,16 +723,27 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const ALL_NOTIF_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   const TASK_REMINDER_ACTION_TYPE = "TASK_REMINDER";
 
-  // Two Android notification channels, sound-on vs sound-off, so the
-  // existing "Звук" setting can actually mute reminders - Android only
-  // lets an app pick a channel's sound at channel *creation* time, not per
-  // notification or after the fact, so "toggle sound" has to mean "route
-  // through the other channel" rather than a per-notification flag.
-  // LOW importance is the one Android importance level guaranteed silent;
-  // HIGH gives the sound-on channel a heads-up popup too, which suits a
-  // medication reminder with actionable Done/Snooze buttons.
+  // Three Android notification channels. Android only lets an app pick a
+  // channel's sound/importance/vibration at channel *creation* time, never
+  // per notification or after the fact, so both the existing "Звук" setting
+  // and the new "Тип напоминания" setting have to mean "route through a
+  // different channel" rather than a per-notification flag:
+  //   - reminders         : normal style, sound on. HIGH gives it a heads-up
+  //                         popup too, which suits a reminder with actionable
+  //                         Done/Snooze buttons.
+  //   - reminders_silent  : "Звук" turned off. LOW is the one importance
+  //                         level Android guarantees silent, regardless of
+  //                         which notification style is selected - a silent
+  //                         "alarm" would defeat the point of either setting,
+  //                         so sound-off always wins over style.
+  //   - reminders_alarm   : "Как звонок" style, sound on. MAX for the most
+  //                         insistent heads-up behavior the platform allows,
+  //                         plus a bundled ~24s alarm-style beep pattern
+  //                         (android/app/src/main/res/raw/alarm_reminder.wav)
+  //                         instead of the short default notification sound.
   const NOTIF_CHANNEL_SOUND = "reminders";
   const NOTIF_CHANNEL_SILENT = "reminders_silent";
+  const NOTIF_CHANNEL_ALARM = "reminders_alarm";
   let notificationChannelsReady = false;
 
   async function ensureNotificationChannels(){
@@ -754,12 +765,67 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
         visibility: 1,
         vibration: false
       });
+      await LocalNotifications.createChannel({
+        id: NOTIF_CHANNEL_ALARM,
+        name: "Напоминания (как звонок)",
+        description: "Настойчивый вариант напоминаний - громкий сигнал, сильная вибрация",
+        importance: 5,
+        visibility: 1,
+        vibration: true,
+        sound: "alarm_reminder"
+      });
       notificationChannelsReady = true;
     }catch(e){}
   }
 
+  // ---------- notification style ("Обычное" vs "Как звонок") ----------
+  // Device-local, not synced through the patient record - it's a preference
+  // about how THIS phone should behave, not patient data the doctor needs to
+  // see. Applies uniformly to every reminder that goes through
+  // currentNotificationChannelId(): the main scheduled one, the 10-minute
+  // late reminder, and the explicit "Snooze 10 min" action - all three
+  // already route their channel choice through that one function.
+  const NOTIF_STYLE_KEY = "nezabudkaNotifStyle_v1";
+  function getNotificationStyle(){
+    try{ return localStorage.getItem(NOTIF_STYLE_KEY) === "alarm" ? "alarm" : "normal"; }catch(e){ return "normal"; }
+  }
+  function setNotificationStyle(style){
+    try{ localStorage.setItem(NOTIF_STYLE_KEY, style === "alarm" ? "alarm" : "normal"); }catch(e){}
+  }
+
   function currentNotificationChannelId(){
-    return getData().soundEnabled === false ? NOTIF_CHANNEL_SILENT : NOTIF_CHANNEL_SOUND;
+    if(getData().soundEnabled === false) return NOTIF_CHANNEL_SILENT;
+    return getNotificationStyle() === "alarm" ? NOTIF_CHANNEL_ALARM : NOTIF_CHANNEL_SOUND;
+  }
+
+  // LIMITATION (see the technical note handed back after implementing this):
+  // Capacitor's channel API only exposes a boolean `vibration` flag, not a
+  // custom pattern - Android itself supports a per-channel vibration
+  // pattern natively, but the plugin doesn't surface it, so the channel
+  // alone only ever gives the OS's short default buzz. This layers a real
+  // buzz-pause-buzz pattern on top via the Web Vibration API, timed to the
+  // alarm_reminder.wav length (24s) - but it only runs while this page's JS
+  // is alive to receive "localNotificationReceived" (foreground, or
+  // backgrounded with the process not yet killed by Android). If Android has
+  // evicted the app process, this never fires and the phone gets only the
+  // channel's plain default vibration + the full 24s sound - still audibly
+  // distinct from "Обычное", just not the repeating-buzz pattern too.
+  const ALARM_VIBRATE_SEGMENT_MS = 700;
+  const ALARM_VIBRATE_PAUSE_MS = 500;
+  const ALARM_VIBRATE_REPEATS = 20; // 20 * (700+500) = 24000ms, matching alarm_reminder.wav
+  function buildAlarmVibratePattern(){
+    const pattern = [];
+    for(let i = 0; i < ALARM_VIBRATE_REPEATS; i++) pattern.push(ALARM_VIBRATE_SEGMENT_MS, ALARM_VIBRATE_PAUSE_MS);
+    return pattern;
+  }
+  function startAlarmVibration(){
+    try{ if(navigator.vibrate) navigator.vibrate(buildAlarmVibratePattern()); }catch(e){}
+  }
+  function stopAlarmVibration(){
+    try{ if(navigator.vibrate) navigator.vibrate(0); }catch(e){}
+  }
+  function isOurNotification(notification){
+    return !!(notification && notification.extra && notification.extra.taskId);
   }
 
   // How long after a timed task's due time to send a second, separate
@@ -955,6 +1021,12 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       });
     }catch(e){}
     LocalNotifications.addListener("localNotificationActionPerformed", handleNotificationAction);
+    // Fires while this page's JS is alive when a scheduled notification is
+    // delivered (foreground, or backgrounded but not yet evicted) - see the
+    // LIMITATION note above startAlarmVibration for when this can't fire.
+    LocalNotifications.addListener("localNotificationReceived", (notification) => {
+      if(getNotificationStyle() === "alarm" && isOurNotification(notification)) startAlarmVibration();
+    });
   }
 
   async function snoozeTaskNotification(taskId, title, body){
@@ -979,6 +1051,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   async function handleNotificationAction(event){
     const actionId = event && event.actionId;
     const notification = (event && event.notification) || {};
+    // Any interaction with the notification - a plain tap ("tap"), Done, or
+    // Snooze - counts as "opened" for the "как звонок" style's own stated
+    // duration cap (~20-30s, or until opened, whichever is first).
+    stopAlarmVibration();
     const taskId = (notification.extra || {}).taskId;
     if(!taskId) return;
 
@@ -995,27 +1071,66 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     }
   }
 
-  // Runs once per app start: compares what's actually scheduled on the device
-  // against what the current task list expects. A mismatch (reinstalled app,
-  // OS killed the alarm store, etc.) triggers a full cancel-then-reschedule
-  // from scratch rather than trying to patch the difference.
+  // Compares a task's expected plan entry against what the OS actually has
+  // scheduled for that id. Not just "does the id exist" - a same-shaped task
+  // (same slots) whose time/weekday changed keeps the exact same id (see
+  // notifSlotId: derived from taskId+slot only), so an id-presence-only check
+  // can never notice the OS is still firing at the OLD time. Any parse
+  // failure or unexpected shape counts as a mismatch (reschedule when
+  // uncertain, never silently trust stale data).
+  function pendingMatchesPlan(pendingSchedule, planEntry){
+    if(!pendingSchedule) return false;
+    if(planEntry.at){
+      if(!pendingSchedule.at) return false;
+      const pendingAtMs = new Date(pendingSchedule.at).getTime();
+      return Number.isFinite(pendingAtMs) && Math.abs(pendingAtMs - planEntry.at.getTime()) < 1000;
+    }
+    const on = pendingSchedule.on;
+    if(!on) return false;
+    if(Number(on.hour) !== planEntry.hour || Number(on.minute) !== planEntry.minute) return false;
+    if(planEntry.weekday) return Number(on.weekday) === planEntry.weekday;
+    return on.weekday === undefined || on.weekday === null;
+  }
+
+  // Compares what's actually scheduled on the device against what the
+  // current task list expects, and does a full cancel-then-reschedule from
+  // scratch the moment they disagree - on anything: a missing id (reinstall,
+  // OS killed the alarm store), a stray id (task deleted remotely), or an id
+  // present but pointing at a stale time (task's schedule changed remotely -
+  // by a doctor, or from another device/session - and this device's own
+  // alarms were never told). That last case is exactly what an id-presence-
+  // only check used to miss silently; see pendingMatchesPlan above.
+  //
+  // Runs at boot AND on every poll tick (see startPolling) - a doctor's edit
+  // reaches this device within one poll interval, not just at next app
+  // restart. Cheap when nothing changed: one getPending() call and a set
+  // comparison, no scheduling I/O.
   async function reconcileAllNotifications(){
     if(!notificationsAvailable || !notificationPermissionGranted) return;
     const currentData = getData();
-    const expected = new Set();
+    const expected = new Map(); // id -> plan entry
     currentData.tasks.forEach(task => {
-      taskNotificationPlan(task).forEach(p => expected.add(notifSlotId(task.id, p.slot)));
+      taskNotificationPlan(task).forEach(p => expected.set(notifSlotId(task.id, p.slot), p));
     });
     let pending = [];
     try{
       const res = await LocalNotifications.getPending();
       pending = (res && res.notifications) || [];
     }catch(e){ pending = []; }
-    const pendingIds = new Set(pending.map(n => n.id));
-    let diverged = pendingIds.size !== expected.size;
+    // Only the slots taskNotificationPlan can produce belong in this
+    // comparison - late reminders (slot 7) and snooze one-offs (slot 8) are
+    // managed separately (ensureLateReminder / snoozeTaskNotification) and
+    // never appear in `expected`, so their mere presence must never look
+    // like divergence.
+    const RELEVANT_SLOTS = new Set([0, 1, 2, 3, 4, 5, 6, 9]);
+    const pendingById = new Map();
+    pending.forEach(n => { if(RELEVANT_SLOTS.has(n.id % 10)) pendingById.set(n.id, n); });
+
+    let diverged = pendingById.size !== expected.size;
     if(!diverged){
-      for(const id of expected){
-        if(!pendingIds.has(id)){ diverged = true; break; }
+      for(const [id, planEntry] of expected){
+        const p = pendingById.get(id);
+        if(!p || !pendingMatchesPlan(p.schedule, planEntry)){ diverged = true; break; }
       }
     }
     if(!diverged) return;
@@ -2103,6 +2218,9 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
   const companionNameInput = document.getElementById("companionNameInput");
   const themeToggle = document.getElementById("themeToggle");
   const soundToggle = document.getElementById("soundToggle");
+  const notifStyleNormalRadio = document.getElementById("notifStyleNormal");
+  const notifStyleAlarmRadio = document.getElementById("notifStyleAlarm");
+  const notifStyleTestBtn = document.getElementById("notifStyleTestBtn");
   const exportDataBtn = document.getElementById("exportDataBtn");
   const resetAllSettingsBtn = document.getElementById("resetAllSettingsBtn");
   const notificationsDisabledHintEl = document.getElementById("notificationsDisabledHint");
@@ -2116,6 +2234,9 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     companionNameInput.value = data.companionName || "Незабудка";
     themeToggle.checked = data.theme === "dark";
     soundToggle.checked = data.soundEnabled !== false;
+    const style = getNotificationStyle();
+    notifStyleNormalRadio.checked = style === "normal";
+    notifStyleAlarmRadio.checked = style === "alarm";
     if(notificationsAvailable){
       // Re-check on every open: the user may have flipped the OS-level
       // permission since the app started, without us getting a callback for it.
@@ -2160,6 +2281,46 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
     // channel right away, instead of waiting for the next natural
     // reschedule (task edit, markDone, the poll loop).
     await rescheduleAllNotificationsForChannelChange();
+  });
+
+  async function onNotifStyleChange(){
+    setNotificationStyle(notifStyleAlarmRadio.checked ? "alarm" : "normal");
+    // Same reasoning as the sound toggle above: move already-scheduled
+    // reminders onto the matching channel right away.
+    await rescheduleAllNotificationsForChannelChange();
+  }
+  notifStyleNormalRadio.addEventListener("change", onNotifStyleChange);
+  notifStyleAlarmRadio.addEventListener("change", onNotifStyleChange);
+
+  // Fires an immediate test notification in the currently selected style, so
+  // the person can feel the difference without waiting for a real reminder.
+  // Built with no `schedule` field at all - the plugin then fires it right
+  // away via a plain OS notify() instead of registering a future alarm (see
+  // node_modules/@capacitor/local-notifications ... buildNotification()).
+  // Deliberately reuses currentNotificationChannelId() - the exact function a
+  // real reminder goes through - rather than recomputing the channel choice
+  // here, so the test can never drift from what a real reminder would do
+  // (e.g. "Звук" off still silences an "как звонок" test, faithfully).
+  notifStyleTestBtn.addEventListener("click", async () => {
+    if(!notificationsAvailable){ showToast("Уведомления недоступны вне приложения"); return; }
+    if(!notificationPermissionGranted){ showToast("Сначала разрешите уведомления"); return; }
+    await ensureNotificationChannels();
+    const style = notifStyleAlarmRadio.checked ? "alarm" : "normal";
+    const channelId = currentNotificationChannelId();
+    const testId = notifBaseId("__notif_style_test__");
+    try{
+      await LocalNotifications.cancel({ notifications: [{ id: testId }] });
+      await LocalNotifications.schedule({ notifications: [{
+        id: testId,
+        title: (getData().companionName || "Незабудка"),
+        body: style === "alarm" ? "Проверка: «Как звонок»" : "Проверка: «Обычное»",
+        channelId,
+        extra: { taskId: "__notif_style_test__" }
+      }] });
+      if(style === "alarm") startAlarmVibration();
+    }catch(e){
+      showToast("Не удалось показать тестовое уведомление");
+    }
   });
 
   exportDataBtn.addEventListener("click", () => {
@@ -2688,6 +2849,10 @@ const API_BASE = "https://nezabudka-zzaa.onrender.com";
       // the app is open - due time passing, a task getting marked done from
       // another device, midnight rolling over to a new "today".
       await ensureAllLateReminders();
+      // Picks up a schedule changed remotely (a doctor edit, another device)
+      // within one poll interval instead of only at the next app cold start -
+      // see reconcileAllNotifications for why boot-only wasn't enough.
+      await reconcileAllNotifications();
     }, POLL_INTERVAL_MS);
   }
 
